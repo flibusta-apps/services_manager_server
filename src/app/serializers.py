@@ -16,4 +16,4 @@ class ServiceDetail(BaseModel):
     token: str
     user: str
     status: str
-    created_date: datetime
+    created_time: datetime
