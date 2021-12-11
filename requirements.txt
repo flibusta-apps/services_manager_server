@@ -1,7 +1,5 @@
 fastapi
 pydantic
 alembic
-ormar
+ormar[postgresql]
 uvicorn[standart]
-asyncpg
-psycopg2
