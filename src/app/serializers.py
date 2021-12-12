@@ -16,4 +16,5 @@ class ServiceDetail(BaseModel):
     token: str
     user: str
     status: str
+    privileged: bool
     created_time: datetime
