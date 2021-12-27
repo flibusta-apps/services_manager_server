@@ -2,13 +2,14 @@ from datetime import datetime
 
 from pydantic import BaseModel, constr
 
-from app.models import Statuses
+from app.models import Statuses, CachePrivileges
 
 
 class ServiceCreate(BaseModel):
     token: constr(max_length=128)  # type: ignore
     user: str
     status: Statuses
+    cache: CachePrivileges
 
 
 class ServiceDetail(BaseModel):
@@ -16,5 +17,5 @@ class ServiceDetail(BaseModel):
     token: str
     user: str
     status: str
-    privileged: bool
+    cache: str
     created_time: datetime

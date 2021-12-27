@@ -17,6 +17,12 @@ class Statuses(str, Enum):
     blocked = "blocked"
 
 
+class CachePrivileges(str, Enum):
+    original = "original"
+    buffer = "buffer"
+    no_cache = "no_cache"
+
+
 class Service(ormar.Model):
     class Meta(BaseMeta):
         tablename = "services"
@@ -25,5 +31,5 @@ class Service(ormar.Model):
     token: str = ormar.String(max_length=128, unique=True)  # type: ignore
     user: int = ormar.BigInteger()  # type: ignore
     status: str = ormar.String(max_length=12, choices=list(Statuses), default=Statuses.pending)  # type: ignore
-    privileged: bool = ormar.Boolean(default=False, server_default='f', nullable=False)  # type: ignore
+    cache: str = ormar.String(max_length=12, choices=list(CachePrivileges), default=CachePrivileges.no_cache)  # type: ignore
     created_time = ormar.DateTime(timezone=True, default=datetime.now)
