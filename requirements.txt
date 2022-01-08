@@ -1,5 +1,0 @@
-fastapi
-pydantic
-alembic
-ormar[postgresql]
-uvicorn[standart]

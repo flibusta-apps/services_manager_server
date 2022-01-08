@@ -1,16 +1,14 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 
 from app.depends import check_token
-from app.serializers import ServiceCreate, ServiceDetail
 from app.models import CachePrivileges, Service, Statuses
+from app.serializers import ServiceCreate, ServiceDetail
 
 
 # TODO: add redis cache
 
 
-router = APIRouter(
-    dependencies=[Depends(check_token)]
-)
+router = APIRouter(dependencies=[Depends(check_token)])
 
 
 @router.get("/", response_model=list[ServiceDetail])
@@ -24,7 +22,7 @@ async def get_service(id: int):
 
     if service is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    
+
     return service
 
 
@@ -42,7 +40,7 @@ async def update_service_state(id: int, new_status: Statuses):
 
     service.status = new_status
 
-    await service.update(['status'])
+    await service.update(["status"])
 
     return service
 
@@ -56,6 +54,6 @@ async def update_service_cache(id: int, new_cache: CachePrivileges):
 
     service.cache = new_cache
 
-    await service.update(['cache'])
+    await service.update(["cache"])
 
     return service
