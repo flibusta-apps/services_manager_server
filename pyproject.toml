@@ -10,6 +10,7 @@ fastapi = "^0.71.0"
 alembic = "^1.7.5"
 ormar = {extras = ["postgresql"], version = "^0.10.23"}
 uvicorn = {extras = ["standart"], version = "^0.16.0"}
+httpx = "^0.22.0"
 
 [tool.poetry.dev-dependencies]
 

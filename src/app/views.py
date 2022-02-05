@@ -16,6 +16,11 @@ async def get_services():
     return await Service.objects.all()
 
 
+@router.get("/healthcheck")
+async def healthcheck():
+    return "Ok!"
+
+
 @router.get("/{id}", response_model=ServiceDetail)
 async def get_service(id: int):
     service = await Service.objects.get_or_none(id=id)
