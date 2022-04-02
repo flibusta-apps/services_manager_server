@@ -6,7 +6,7 @@ authors = ["Kurbanov Bulat <kurbanovbul@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
-fastapi = "^0.71.0"
+fastapi = ">=0.71.0"
 alembic = "^1.7.5"
 ormar = {extras = ["postgresql"], version = "^0.10.23"}
 uvicorn = {extras = ["standart"], version = "^0.16.0"}
