@@ -10,5 +10,7 @@ class EnvConfig(BaseSettings):
     POSTGRES_PORT: int
     POSTGRES_DB: str
 
+    SENTRY_DSN: str
+
 
 env_config = EnvConfig()
