@@ -29,6 +29,7 @@ class Service(ormar.Model):
 
     id: int = ormar.Integer(primary_key=True)  # type: ignore
     token: str = ormar.String(max_length=128, unique=True)  # type: ignore
+    username: str = ormar.String(max_length=64, default="")  # type: ignore
     user: int = ormar.BigInteger()  # type: ignore
     status: str = ormar.String(
         max_length=12, choices=list(Statuses), default=Statuses.pending
