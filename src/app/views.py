@@ -21,12 +21,24 @@ async def healthcheck():
     return "Ok!"
 
 
-@router.get("/{id}", response_model=ServiceDetail)
+@router.get("/{id}/", response_model=ServiceDetail)
 async def get_service(id: int):
     service = await Service.objects.get_or_none(id=id)
 
     if service is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    return service
+
+
+@router.delete("/{id}/", response_model=ServiceDetail)
+async def delete_service(id: int):
+    service = await Service.objects.get_or_none(id=id)
+
+    if service is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    await service.delete()
 
     return service
 
