@@ -1,9 +1,8 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.depends import check_token
 from app.models import CachePrivileges, Service, Statuses
 from app.serializers import ServiceCreate, ServiceDetail
-
 
 # TODO: add redis cache
 

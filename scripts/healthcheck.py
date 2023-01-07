@@ -2,7 +2,6 @@ import os
 
 import httpx
 
-
 response = httpx.get(
     "http://localhost:8080/healthcheck",
     headers={"Authorization": os.environ["API_KEY"]},

@@ -3,7 +3,7 @@ from enum import Enum
 
 import ormar
 
-from core.db import metadata, database
+from core.db import database, metadata
 
 
 class BaseMeta(ormar.ModelMeta):

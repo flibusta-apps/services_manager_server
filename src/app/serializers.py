@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, constr
 
-from app.models import Statuses, CachePrivileges
+from app.models import CachePrivileges, Statuses
 
 
 class ServiceCreate(BaseModel):

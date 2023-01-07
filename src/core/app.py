@@ -1,11 +1,9 @@
-from fastapi import FastAPI
-
 import sentry_sdk
+from fastapi import FastAPI
 
 from app.views import router
 from core.config import env_config
 from core.db import database
-
 
 sentry_sdk.init(
     env_config.SENTRY_DSN,
