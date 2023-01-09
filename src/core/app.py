@@ -1,5 +1,5 @@
-import sentry_sdk
 from fastapi import FastAPI
+import sentry_sdk
 
 from app.views import router
 from core.config import env_config
