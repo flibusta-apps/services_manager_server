@@ -12,4 +12,4 @@ DATABASE_URL = (
 )
 
 metadata = MetaData()
-database = Database(DATABASE_URL)
+database = Database(DATABASE_URL, max_size=2)
