@@ -1,3 +1,3 @@
 cd /app
 alembic -c ./app/alembic.ini upgrade head
-gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8080
+uvicorn main:app --host 0.0.0.0 --port 8080 --loop uvloop
