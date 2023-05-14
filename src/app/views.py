@@ -45,6 +45,11 @@ async def delete_service(id: int):
 
 @router.post("/", response_model=ServiceDetail)
 async def register_service(data: ServiceCreate):
+    user_services_count = await Service.objects.filter(user=data.user).count()
+
+    if user_services_count >= 3:
+        raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED)
+
     return await Service.objects.create(**data.dict())
 
 
