@@ -8,7 +8,7 @@ from app.models import CachePrivileges, Statuses
 
 class ServiceCreate(BaseModel):
     token: constr(max_length=128)  # type: ignore
-    user: Optional[str] = None
+    user: int
     username: constr(max_length=64)  # type: ignore
     status: Statuses
     cache: CachePrivileges
