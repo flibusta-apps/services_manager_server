@@ -1,0 +1,21 @@
+generator client {
+  provider = "cargo prisma"
+  output   = "../src/prisma.rs"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Service {
+  id           Int       @id @default(autoincrement())
+  token        String    @unique @db.VarChar(128)
+  user         BigInt
+  status       String   @db.VarChar(12)
+  created_time DateTime @db.Timestamptz(6)
+  cache        String   @db.VarChar(12)
+  username     String   @db.VarChar(64)
+
+  @@map("services")
+}
