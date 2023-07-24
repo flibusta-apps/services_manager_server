@@ -18,6 +18,7 @@ async fn get_services(
 ) -> impl IntoResponse {
     let services = db.service()
         .find_many(vec![])
+        .order_by(service::id::order(prisma_client_rust::Direction::Asc))
         .exec()
         .await
         .unwrap();
