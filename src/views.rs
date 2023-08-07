@@ -67,15 +67,10 @@ async fn delete_service(
 
 #[derive(Deserialize)]
 pub struct CreateServiceData {
-    #[serde(rename = "token")]
     pub token: String,
-    #[serde(rename = "user")]
     pub user: i64,
-    #[serde(rename = "status")]
     pub status: String,
-    #[serde(rename = "cache")]
     pub cache: String,
-    #[serde(rename = "username")]
     pub username: String,
 }
 
