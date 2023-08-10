@@ -3,9 +3,10 @@ pub mod db;
 pub mod prisma;
 pub mod views;
 
+use sentry::{ClientOptions, types::Dsn, integrations::debug_images::DebugImagesIntegration};
 use tracing::info;
 
-use std::net::SocketAddr;
+use std::{net::SocketAddr, str::FromStr};
 
 async fn start_app() {
     let app = views::get_router().await;
@@ -27,7 +28,14 @@ async fn main() {
         .compact()
         .init();
 
-    let _guard = sentry::init(config::CONFIG.sentry_dsn.clone());
+    let options = ClientOptions {
+        dsn: Some(Dsn::from_str(&config::CONFIG.sentry_dsn).unwrap()),
+        default_integrations: false,
+        ..Default::default()
+    }
+    .add_integration(DebugImagesIntegration::new());
+
+    let _guard = sentry::init(options);
 
     start_app().await;
 }
