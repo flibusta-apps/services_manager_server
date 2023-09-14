@@ -1,4 +1,4 @@
-use axum::{Router, response::{Response, IntoResponse}, http::{StatusCode, self, Request}, middleware::{Next, self}, Extension, routing::{get, delete, post, patch}, Json, extract::{Path, self}};
+use axum::{Router, response::{Response, IntoResponse}, http::{StatusCode, self, Request}, middleware::{Next, self}, Extension, routing::{get, delete, post, patch}, Json, extract::Path};
 use axum_prometheus::PrometheusMetricLayer;
 use serde::Deserialize;
 use tower_http::trace::{TraceLayer, self};
@@ -76,7 +76,7 @@ pub struct CreateServiceData {
 
 async fn create_service(
     db: Database,
-    extract::Json(data): extract::Json<CreateServiceData>,
+    Json(data): Json<CreateServiceData>,
 ) -> impl IntoResponse {
     let CreateServiceData { token, user, status, cache, username } = data;
 
@@ -100,7 +100,7 @@ async fn create_service(
 async fn update_state(
     Path(id): Path<i32>,
     db: Database,
-    extract::Json(state): extract::Json<String>
+    Json(state): Json<String>
 ) -> impl IntoResponse {
     let service = db.service()
         .update(
@@ -121,7 +121,7 @@ async fn update_state(
 async fn update_cache(
     Path(id): Path<i32>,
     db: Database,
-    extract::Json(cache): extract::Json<String>
+    Json(cache): Json<String>
 ) -> impl IntoResponse {
     let service = db.service()
         .update(
