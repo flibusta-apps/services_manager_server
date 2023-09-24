@@ -3,7 +3,7 @@ pub mod db;
 pub mod prisma;
 pub mod views;
 
-use sentry::{ClientOptions, types::Dsn, integrations::debug_images::DebugImagesIntegration};
+use sentry::{integrations::debug_images::DebugImagesIntegration, types::Dsn, ClientOptions};
 use tracing::info;
 
 use std::{net::SocketAddr, str::FromStr};

@@ -9,14 +9,12 @@ pub struct Config {
     pub postgres_port: u32,
     pub postgres_db: String,
 
-    pub sentry_dsn: String
+    pub sentry_dsn: String,
 }
-
 
 fn get_env(env: &'static str) -> String {
     std::env::var(env).unwrap_or_else(|_| panic!("Cannot get the {} env variable", env))
 }
-
 
 impl Config {
     pub fn load() -> Config {
@@ -29,12 +27,9 @@ impl Config {
             postgres_port: get_env("POSTGRES_PORT").parse().unwrap(),
             postgres_db: get_env("POSTGRES_DB"),
 
-            sentry_dsn: get_env("SENTRY_DSN")
+            sentry_dsn: get_env("SENTRY_DSN"),
         }
     }
 }
 
-
-pub static CONFIG: Lazy<Config> = Lazy::new(|| {
-    Config::load()
-});
+pub static CONFIG: Lazy<Config> = Lazy::new(Config::load);

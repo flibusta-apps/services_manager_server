@@ -1,22 +1,30 @@
-use axum::{Router, response::{Response, IntoResponse}, http::{StatusCode, self, Request}, middleware::{Next, self}, Extension, routing::{get, delete, post, patch}, Json, extract::Path};
+use axum::{
+    extract::Path,
+    http::{self, Request, StatusCode},
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
+    routing::{delete, get, patch, post},
+    Extension, Json, Router,
+};
 use axum_prometheus::PrometheusMetricLayer;
 use serde::Deserialize;
-use tower_http::trace::{TraceLayer, self};
-use tracing::Level;
 use std::sync::Arc;
+use tower_http::trace::{self, TraceLayer};
+use tracing::Level;
 
-use crate::{config::CONFIG, db::get_prisma_client, prisma::{PrismaClient, service}};
-
+use crate::{
+    config::CONFIG,
+    db::get_prisma_client,
+    prisma::{service, PrismaClient},
+};
 
 pub type Database = Extension<Arc<PrismaClient>>;
 
-
 //
 
-async fn get_services(
-    db: Database
-) -> impl IntoResponse {
-    let services = db.service()
+async fn get_services(db: Database) -> impl IntoResponse {
+    let services = db
+        .service()
         .find_many(vec![])
         .order_by(service::id::order(prisma_client_rust::Direction::Asc))
         .exec()
@@ -26,11 +34,9 @@ async fn get_services(
     Json(services).into_response()
 }
 
-async fn get_service(
-    Path(id): Path<i32>,
-    db: Database
-) -> impl IntoResponse {
-    let service = db.service()
+async fn get_service(Path(id): Path<i32>, db: Database) -> impl IntoResponse {
+    let service = db
+        .service()
         .find_unique(service::id::equals(id))
         .exec()
         .await
@@ -42,11 +48,9 @@ async fn get_service(
     }
 }
 
-async fn delete_service(
-    Path(id): Path<i32>,
-    db: Database
-) -> impl IntoResponse {
-    let service = db.service()
+async fn delete_service(Path(id): Path<i32>, db: Database) -> impl IntoResponse {
+    let service = db
+        .service()
         .find_unique(service::id::equals(id))
         .exec()
         .await
@@ -54,13 +58,10 @@ async fn delete_service(
 
     match service {
         Some(v) => {
-            let _ = db.service()
-                .delete(service::id::equals(id))
-                .exec()
-                .await;
+            let _ = db.service().delete(service::id::equals(id)).exec().await;
 
             Json(v).into_response()
-        },
+        }
         None => StatusCode::NOT_FOUND.into_response(),
     }
 }
@@ -74,13 +75,17 @@ pub struct CreateServiceData {
     pub username: String,
 }
 
-async fn create_service(
-    db: Database,
-    Json(data): Json<CreateServiceData>,
-) -> impl IntoResponse {
-    let CreateServiceData { token, user, status, cache, username } = data;
+async fn create_service(db: Database, Json(data): Json<CreateServiceData>) -> impl IntoResponse {
+    let CreateServiceData {
+        token,
+        user,
+        status,
+        cache,
+        username,
+    } = data;
 
-    let service = db.service()
+    let service = db
+        .service()
         .create(
             token,
             user,
@@ -88,7 +93,7 @@ async fn create_service(
             chrono::offset::Local::now().into(),
             cache,
             username,
-            vec![]
+            vec![],
         )
         .exec()
         .await
@@ -100,15 +105,11 @@ async fn create_service(
 async fn update_state(
     Path(id): Path<i32>,
     db: Database,
-    Json(state): Json<String>
+    Json(state): Json<String>,
 ) -> impl IntoResponse {
-    let service = db.service()
-        .update(
-            service::id::equals(id),
-            vec![
-                service::status::set(state)
-            ]
-        )
+    let service = db
+        .service()
+        .update(service::id::equals(id), vec![service::status::set(state)])
         .exec()
         .await;
 
@@ -121,15 +122,11 @@ async fn update_state(
 async fn update_cache(
     Path(id): Path<i32>,
     db: Database,
-    Json(cache): Json<String>
+    Json(cache): Json<String>,
 ) -> impl IntoResponse {
-    let service = db.service()
-        .update(
-            service::id::equals(id),
-            vec![
-                service::cache::set(cache)
-            ]
-        )
+    let service = db
+        .service()
+        .update(service::id::equals(id), vec![service::cache::set(cache)])
         .exec()
         .await;
 
@@ -141,9 +138,9 @@ async fn update_cache(
 
 //
 
-
 async fn auth<B>(req: Request<B>, next: Next<B>) -> Result<Response, StatusCode> {
-    let auth_header = req.headers()
+    let auth_header = req
+        .headers()
         .get(http::header::AUTHORIZATION)
         .and_then(|header| header.to_str().ok());
 
@@ -160,7 +157,6 @@ async fn auth<B>(req: Request<B>, next: Next<B>) -> Result<Response, StatusCode>
     Ok(next.run(req).await)
 }
 
-
 pub async fn get_router() -> Router {
     let client = Arc::new(get_prisma_client().await);
 
@@ -173,22 +169,19 @@ pub async fn get_router() -> Router {
         .route("/", post(create_service))
         .route("/:id/update_status", patch(update_state))
         .route("/:id/update_cache", patch(update_cache))
-
         .layer(middleware::from_fn(auth))
         .layer(Extension(client))
         .layer(prometheus_layer);
 
-    let metric_router = Router::new()
-        .route("/metrics", get(|| async move { metric_handle.render() }));
+    let metric_router =
+        Router::new().route("/metrics", get(|| async move { metric_handle.render() }));
 
     Router::new()
         .nest("/", app_router)
         .nest("/", metric_router)
         .layer(
             TraceLayer::new_for_http()
-                .make_span_with(trace::DefaultMakeSpan::new()
-                    .level(Level::INFO))
-                .on_response(trace::DefaultOnResponse::new()
-                    .level(Level::INFO)),
+                .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
+                .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
         )
 }
