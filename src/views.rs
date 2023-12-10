@@ -138,7 +138,7 @@ async fn update_cache(
 
 //
 
-async fn auth<B>(req: Request<B>, next: Next<B>) -> Result<Response, StatusCode> {
+async fn auth(req: Request<axum::body::Body>, next: Next) -> Result<Response, StatusCode> {
     let auth_header = req
         .headers()
         .get(http::header::AUTHORIZATION)
