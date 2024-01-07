@@ -20,7 +20,7 @@ use crate::{
 
 pub type Database = Extension<Arc<PrismaClient>>;
 
-const BOTS_COUNT_LIMIT: i64 = 3;
+const BOTS_COUNT_LIMIT: i64 = 5;
 
 async fn get_services(db: Database) -> impl IntoResponse {
     let services = db
