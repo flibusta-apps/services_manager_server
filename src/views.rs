@@ -20,7 +20,7 @@ use crate::{
 
 pub type Database = Extension<Arc<PrismaClient>>;
 
-//
+const BOTS_COUNT_LIMIT: i64 = 3;
 
 async fn get_services(db: Database) -> impl IntoResponse {
     let services = db
@@ -83,6 +83,17 @@ async fn create_service(db: Database, Json(data): Json<CreateServiceData>) -> im
         cache,
         username,
     } = data;
+
+    let exist_count = db
+        .service()
+        .count(vec![service::user::equals(user)])
+        .exec()
+        .await
+        .unwrap();
+
+    if exist_count >= BOTS_COUNT_LIMIT {
+        return StatusCode::PAYMENT_REQUIRED.into_response();
+    };
 
     let service = db
         .service()
