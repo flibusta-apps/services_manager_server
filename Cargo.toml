@@ -14,14 +14,14 @@ members = [
 once_cell = "1.19.0"
 
 prisma-client-rust = { git = "https://github.com/Brendonovich/prisma-client-rust", tag = "0.6.10", default-features = false, features = ["postgresql"] }
-serde = { version = "1.0.195", features = ["derive"] }
+serde = { version = "1.0.198", features = ["derive"] }
 
-tokio = { version = "1.35.1", features = ["full"] }
-axum = { version = "0.7.3", features = ["json"] }
-axum-prometheus = "0.5.0"
-chrono = "0.4.31"
-sentry = { version = "0.32.1", features = ["debug-images"] }
+tokio = { version = "1.37.0", features = ["full"] }
+axum = { version = "0.7.5", features = ["json"] }
+axum-prometheus = "0.6.1"
+chrono = "0.4.38"
+sentry = { version = "0.32.3", features = ["debug-images"] }
 
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"]}
-tower-http = { version = "0.5.0", features = ["trace"] }
+tower-http = { version = "0.5.2", features = ["trace"] }
