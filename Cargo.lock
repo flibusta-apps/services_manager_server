@@ -3111,6 +3111,7 @@ dependencies = [
  "once_cell",
  "prisma-client-rust",
  "sentry",
+ "sentry-tracing",
  "serde",
  "tokio",
  "tower-http",
