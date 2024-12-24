@@ -1,8 +1,10 @@
-use crate::{config::CONFIG, prisma::PrismaClient};
+use crate::config::CONFIG;
 
-pub async fn get_prisma_client() -> PrismaClient {
+use sqlx::{postgres::PgPoolOptions, PgPool};
+
+pub async fn get_pg_pool() -> PgPool {
     let database_url: String = format!(
-        "postgresql://{}:{}@{}:{}/{}?connection_limit=1",
+        "postgresql://{}:{}@{}:{}/{}",
         CONFIG.postgres_user,
         CONFIG.postgres_password,
         CONFIG.postgres_host,
@@ -10,9 +12,9 @@ pub async fn get_prisma_client() -> PrismaClient {
         CONFIG.postgres_db
     );
 
-    PrismaClient::_builder()
-        .with_url(database_url)
-        .build()
+    PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&database_url)
         .await
         .unwrap()
 }

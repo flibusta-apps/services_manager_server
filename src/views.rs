@@ -7,40 +7,54 @@ use axum::{
     Extension, Json, Router,
 };
 use axum_prometheus::PrometheusMetricLayer;
-use serde::Deserialize;
-use std::sync::Arc;
+use chrono::DateTime;
+use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 use tower_http::trace::{self, TraceLayer};
 use tracing::Level;
 
-use crate::{
-    config::CONFIG,
-    db::get_prisma_client,
-    prisma::{service, PrismaClient},
-};
+use crate::{config::CONFIG, db::get_pg_pool};
 
-pub type Database = Extension<Arc<PrismaClient>>;
+pub type Database = Extension<PgPool>;
 
 const BOTS_COUNT_LIMIT: i64 = 5;
 
+#[derive(sqlx::FromRow, Serialize)]
+pub struct Service {
+    pub id: i32,
+    pub token: String,
+    pub user: i64,
+    pub status: String,
+    pub created_time: DateTime<chrono::Local>,
+    pub cache: String,
+    pub username: String,
+}
+
 async fn get_services(db: Database) -> impl IntoResponse {
-    let services = db
-        .service()
-        .find_many(vec![])
-        .order_by(service::id::order(prisma_client_rust::Direction::Asc))
-        .exec()
-        .await
-        .unwrap();
+    let services = sqlx::query_as!(
+        Service,
+        r#"
+        SELECT * FROM services
+        "#
+    )
+    .fetch_all(&db.0)
+    .await
+    .unwrap();
 
     Json(services).into_response()
 }
 
 async fn get_service(Path(id): Path<i32>, db: Database) -> impl IntoResponse {
-    let service = db
-        .service()
-        .find_unique(service::id::equals(id))
-        .exec()
-        .await
-        .unwrap();
+    let service = sqlx::query_as!(
+        Service,
+        r#"
+        SELECT * FROM services WHERE id = $1
+        "#,
+        id
+    )
+    .fetch_optional(&db.0)
+    .await
+    .unwrap();
 
     match service {
         Some(v) => Json(v).into_response(),
@@ -49,19 +63,19 @@ async fn get_service(Path(id): Path<i32>, db: Database) -> impl IntoResponse {
 }
 
 async fn delete_service(Path(id): Path<i32>, db: Database) -> impl IntoResponse {
-    let service = db
-        .service()
-        .find_unique(service::id::equals(id))
-        .exec()
-        .await
-        .unwrap();
+    let service = sqlx::query_as!(
+        Service,
+        r#"
+        DELETE FROM services WHERE id = $1 RETURNING *
+        "#,
+        id
+    )
+    .fetch_optional(&db.0)
+    .await
+    .unwrap();
 
     match service {
-        Some(v) => {
-            let _ = db.service().delete(service::id::equals(id)).exec().await;
-
-            Json(v).into_response()
-        }
+        Some(v) => Json(v).into_response(),
         None => StatusCode::NOT_FOUND.into_response(),
     }
 }
@@ -84,29 +98,33 @@ async fn create_service(db: Database, Json(data): Json<CreateServiceData>) -> im
         username,
     } = data;
 
-    let exist_count = db
-        .service()
-        .count(vec![service::user::equals(user)])
-        .exec()
-        .await
-        .unwrap();
+    let exist_count = sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(*) FROM services WHERE "user" = $1
+        "#,
+        user
+    )
+    .fetch_one(&db.0)
+    .await
+    .unwrap_or(Some(0))
+    .unwrap();
 
     if exist_count >= BOTS_COUNT_LIMIT {
         return StatusCode::PAYMENT_REQUIRED.into_response();
     };
 
-    let service = db
-        .service()
-        .create(
-            token,
-            user,
-            status,
-            chrono::offset::Local::now().into(),
-            cache,
-            username,
-            vec![],
-        )
-        .exec()
+    let service = sqlx::query_as!(
+        Service,
+        r#"
+        INSERT INTO services (token, "user", status, cache, username) VALUES ($1, $2, $3, $4, $5) RETURNING *
+        "#,
+        token,
+        user,
+        status,
+        cache,
+        username
+    )
+        .fetch_one(&db.0)
         .await
         .unwrap();
 
@@ -118,15 +136,21 @@ async fn update_state(
     db: Database,
     Json(state): Json<String>,
 ) -> impl IntoResponse {
-    let service = db
-        .service()
-        .update(service::id::equals(id), vec![service::status::set(state)])
-        .exec()
-        .await;
+    let service = sqlx::query_as!(
+        Service,
+        r#"
+        UPDATE services SET status = $1 WHERE id = $2 RETURNING *
+        "#,
+        state,
+        id
+    )
+    .fetch_optional(&db.0)
+    .await
+    .unwrap();
 
     match service {
-        Ok(v) => Json(v).into_response(),
-        Err(_) => StatusCode::NOT_FOUND.into_response(),
+        Some(v) => Json(v).into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
     }
 }
 
@@ -135,15 +159,21 @@ async fn update_cache(
     db: Database,
     Json(cache): Json<String>,
 ) -> impl IntoResponse {
-    let service = db
-        .service()
-        .update(service::id::equals(id), vec![service::cache::set(cache)])
-        .exec()
-        .await;
+    let service = sqlx::query_as!(
+        Service,
+        r#"
+        UPDATE services SET cache = $1 WHERE id = $2 RETURNING *
+        "#,
+        cache,
+        id
+    )
+    .fetch_optional(&db.0)
+    .await
+    .unwrap();
 
     match service {
-        Ok(v) => Json(v).into_response(),
-        Err(_) => StatusCode::NOT_FOUND.into_response(),
+        Some(v) => Json(v).into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
     }
 }
 
@@ -169,7 +199,7 @@ async fn auth(req: Request<axum::body::Body>, next: Next) -> Result<Response, St
 }
 
 pub async fn get_router() -> Router {
-    let client = Arc::new(get_prisma_client().await);
+    let client = get_pg_pool().await;
 
     let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
 

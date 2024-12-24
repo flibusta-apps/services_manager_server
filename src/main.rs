@@ -1,6 +1,5 @@
 pub mod config;
 pub mod db;
-pub mod prisma;
 pub mod views;
 
 use sentry::{integrations::debug_images::DebugImagesIntegration, types::Dsn, ClientOptions};

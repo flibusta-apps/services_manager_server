@@ -3,26 +3,21 @@ name = "services_manager_server"
 version = "0.1.0"
 edition = "2021"
 
-[workspace]
-members = [
-    "prisma-cli"
-]
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-once_cell = "1.20.1"
+once_cell = "1.20.2"
 
-prisma-client-rust = { git = "https://github.com/Brendonovich/prisma-client-rust", tag = "0.6.10", default-features = false, features = ["postgresql"] }
-serde = { version = "1.0.210", features = ["derive"] }
+serde = { version = "1.0.216", features = ["derive"] }
 
-tokio = { version = "1.40.0", features = ["full"] }
-axum = { version = "0.7.7", features = ["json"] }
+tokio = { version = "1.42.0", features = ["full"] }
+axum = { version = "0.7.9", features = ["json"] }
 axum-prometheus = "0.7.0"
-chrono = "0.4.38"
-sentry = { version = "0.34.0", features = ["debug-images"] }
+chrono = { version = "0.4.39", features = ["serde"] }
+sentry = { version = "0.35.0", features = ["debug-images"] }
 
-tracing = "0.1.40"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"]}
-sentry-tracing = "0.34.0"
-tower-http = { version = "0.6.1", features = ["trace"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"]}
+sentry-tracing = "0.35.0"
+tower-http = { version = "0.6.2", features = ["trace"] }
+
+sqlx = { version = "0.8.2", features = ["runtime-tokio", "postgres", "macros", "chrono"] }
