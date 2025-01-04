@@ -205,11 +205,11 @@ pub async fn get_router() -> Router {
 
     let app_router = Router::new()
         .route("/", get(get_services))
-        .route("/:id/", get(get_service))
-        .route("/:id/", delete(delete_service))
+        .route("/{id}/", get(get_service))
+        .route("/{id}/", delete(delete_service))
         .route("/", post(create_service))
-        .route("/:id/update_status", patch(update_state))
-        .route("/:id/update_cache", patch(update_cache))
+        .route("/{id}/update_status", patch(update_state))
+        .route("/{id}/update_cache", patch(update_cache))
         .layer(middleware::from_fn(auth))
         .layer(Extension(client))
         .layer(prometheus_layer);
