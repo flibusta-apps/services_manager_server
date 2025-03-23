@@ -116,13 +116,14 @@ async fn create_service(db: Database, Json(data): Json<CreateServiceData>) -> im
     let service = sqlx::query_as!(
         Service,
         r#"
-        INSERT INTO services (token, "user", status, cache, username) VALUES ($1, $2, $3, $4, $5) RETURNING *
+        INSERT INTO services (token, "user", status, cache, username, created_time) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *
         "#,
         token,
         user,
         status,
         cache,
-        username
+        username,
+        chrono::Local::now()
     )
         .fetch_one(&db.0)
         .await

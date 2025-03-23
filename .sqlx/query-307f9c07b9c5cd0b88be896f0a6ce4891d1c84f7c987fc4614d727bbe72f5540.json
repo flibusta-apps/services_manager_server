@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO services (token, \"user\", status, cache, username) VALUES ($1, $2, $3, $4, $5) RETURNING *\n        ",
+  "query": "\n        INSERT INTO services (token, \"user\", status, cache, username, created_time) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *\n        ",
   "describe": {
     "columns": [
       {
@@ -45,7 +45,8 @@
         "Int8",
         "Varchar",
         "Varchar",
-        "Varchar"
+        "Varchar",
+        "Timestamptz"
       ]
     },
     "nullable": [
@@ -58,5 +59,5 @@
       false
     ]
   },
-  "hash": "0b3d1cf81684128484ac99bcc2259773a5e8fc6f2499f3fa7c085fc4d21e0d91"
+  "hash": "307f9c07b9c5cd0b88be896f0a6ce4891d1c84f7c987fc4614d727bbe72f5540"
 }
