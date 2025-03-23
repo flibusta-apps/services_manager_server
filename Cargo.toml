@@ -5,19 +5,19 @@ edition = "2021"
 
 
 [dependencies]
-once_cell = "1.20.2"
+once_cell = "1.21.1"
 
-serde = { version = "1.0.217", features = ["derive"] }
+serde = { version = "1.0.219", features = ["derive"] }
 
-tokio = { version = "1.42.0", features = ["full"] }
+tokio = { version = "1.44.1", features = ["full"] }
 axum = { version = "0.8.1", features = ["json"] }
 axum-prometheus = "0.8.0"
-chrono = { version = "0.4.39", features = ["serde"] }
-sentry = { version = "0.35.0", features = ["debug-images"] }
+chrono = { version = "0.4.40", features = ["serde"] }
+sentry = { version = "0.36.0", features = ["debug-images"] }
 
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"]}
-sentry-tracing = "0.35.0"
+sentry-tracing = "0.36.0"
 tower-http = { version = "0.6.2", features = ["trace"] }
 
 sqlx = { version = "0.8.3", features = ["runtime-tokio", "postgres", "macros", "chrono"] }
