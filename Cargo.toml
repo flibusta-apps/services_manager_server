@@ -25,13 +25,13 @@ serde = { version = "1.0.219", features = ["derive"] }
 
 tokio = { version = "1.44.2", features = ["full"] }
 axum = { version = "0.8.1", features = ["json"] }
-axum-prometheus = "0.8.0"
+axum-prometheus = "0.9.0"
 chrono = { version = "0.4.40", features = ["serde"] }
-sentry = { version = "0.41.0", features = ["debug-images"] }
+sentry = { version = "0.42.0", features = ["debug-images"] }
 
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"]}
-sentry-tracing = "0.41.0"
+sentry-tracing = "0.42.0"
 tower-http = { version = "0.6.2", features = ["trace"] }
 
 sqlx = { version = "0.8.3", features = ["runtime-tokio", "postgres", "macros", "chrono"] }
