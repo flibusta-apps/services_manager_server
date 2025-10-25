@@ -113,6 +113,21 @@ async fn create_service(db: Database, Json(data): Json<CreateServiceData>) -> im
         return StatusCode::PAYMENT_REQUIRED.into_response();
     };
 
+    let token_exists = sqlx::query_scalar!(
+        r#"
+        SELECT EXISTS(SELECT 1 FROM services WHERE token = $1)
+        "#,
+        token
+    )
+    .fetch_one(&db.0)
+    .await
+    .unwrap_or(Some(false))
+    .unwrap();
+
+    if token_exists {
+        return StatusCode::CONFLICT.into_response();
+    }
+
     let service = sqlx::query_as!(
         Service,
         r#"
