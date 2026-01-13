@@ -193,6 +193,10 @@ async fn update_cache(
     }
 }
 
+async fn health_check() -> impl IntoResponse {
+    StatusCode::OK
+}
+
 //
 
 async fn auth(req: Request<axum::body::Body>, next: Next) -> Result<Response, StatusCode> {
@@ -230,12 +234,18 @@ pub async fn get_router() -> Router {
         .layer(Extension(client))
         .layer(prometheus_layer);
 
+    let health_router = Router::new().route("/health", get(health_check));
+
     let metric_router =
         Router::new().route("/metrics", get(|| async move { metric_handle.render() }));
 
-    Router::new().merge(app_router).merge(metric_router).layer(
-        TraceLayer::new_for_http()
-            .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
-            .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
-    )
+    Router::new()
+        .merge(app_router)
+        .merge(metric_router)
+        .merge(health_router)
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
+                .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
+        )
 }
