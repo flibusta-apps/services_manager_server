@@ -13,7 +13,7 @@ use sqlx::PgPool;
 use tower_http::trace::{self, TraceLayer};
 use tracing::Level;
 
-use crate::{config::CONFIG, db::get_pg_pool};
+use crate::config::CONFIG;
 
 pub type Database = Extension<PgPool>;
 
@@ -218,9 +218,7 @@ async fn auth(req: Request<axum::body::Body>, next: Next) -> Result<Response, St
     Ok(next.run(req).await)
 }
 
-pub async fn get_router() -> Router {
-    let client = get_pg_pool().await;
-
+pub async fn get_router(client: PgPool) -> Router {
     let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
 
     let app_router = Router::new()

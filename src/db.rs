@@ -1,6 +1,16 @@
 use crate::config::CONFIG;
 
 use sqlx::{postgres::PgPoolOptions, PgPool};
+use tracing::info;
+
+pub async fn run_migrations(pool: &PgPool) {
+    info!("Running database migrations...");
+    sqlx::migrate!("./migrations")
+        .run(pool)
+        .await
+        .expect("Failed to run migrations");
+    info!("Database migrations completed successfully");
+}
 
 pub async fn get_pg_pool() -> PgPool {
     let database_url: String = format!(

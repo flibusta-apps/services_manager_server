@@ -34,4 +34,4 @@ tracing-subscriber = { version = "0.3.19", features = ["env-filter"]}
 sentry-tracing = "0.42.0"
 tower-http = { version = "0.6.2", features = ["trace"] }
 
-sqlx = { version = "0.8.3", features = ["runtime-tokio", "postgres", "macros", "chrono"] }
+sqlx = { version = "0.8.3", features = ["runtime-tokio", "postgres", "macros", "chrono", "migrate"] }

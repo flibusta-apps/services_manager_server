@@ -10,7 +10,13 @@ use tracing_subscriber::{filter, layer::SubscriberExt, util::SubscriberInitExt};
 use std::{net::SocketAddr, str::FromStr};
 
 async fn start_app() {
-    let app = views::get_router().await;
+    // Initialize database pool
+    let pool = db::get_pg_pool().await;
+
+    // Run migrations
+    db::run_migrations(&pool).await;
+
+    let app = views::get_router(pool).await;
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
 
