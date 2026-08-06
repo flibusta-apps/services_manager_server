@@ -26,5 +26,5 @@ pub async fn get_pg_pool() -> PgPool {
         .max_connections(1)
         .connect(&database_url)
         .await
-        .unwrap()
+        .expect("Failed to connect to Postgres — check POSTGRES_HOST/PORT/USER/PASSWORD/DB")
 }

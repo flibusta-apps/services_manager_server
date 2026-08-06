@@ -9,7 +9,7 @@ pub struct Config {
     pub postgres_port: u32,
     pub postgres_db: String,
 
-    pub sentry_dsn: String,
+    pub sentry_dsn: Option<String>,
 
     pub token_enc_key: String,
 }
@@ -26,10 +26,12 @@ impl Config {
             postgres_user: get_env("POSTGRES_USER"),
             postgres_password: get_env("POSTGRES_PASSWORD"),
             postgres_host: get_env("POSTGRES_HOST"),
-            postgres_port: get_env("POSTGRES_PORT").parse().unwrap(),
+            postgres_port: get_env("POSTGRES_PORT")
+                .parse()
+                .unwrap_or_else(|_| panic!("Cannot parse the POSTGRES_PORT env variable")),
             postgres_db: get_env("POSTGRES_DB"),
 
-            sentry_dsn: get_env("SENTRY_DSN"),
+            sentry_dsn: std::env::var("SENTRY_DSN").ok(),
 
             token_enc_key: get_env("TOKEN_ENC_KEY"),
         }

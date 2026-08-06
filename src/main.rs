@@ -1,6 +1,7 @@
 pub mod config;
 pub mod crypto;
 pub mod db;
+pub mod error;
 pub mod views;
 
 use sentry::{integrations::debug_images::DebugImagesIntegration, types::Dsn, ClientOptions};
@@ -29,8 +30,13 @@ async fn start_app() {
 
 #[tokio::main]
 async fn main() {
+    let dsn = config::CONFIG
+        .sentry_dsn
+        .as_ref()
+        .map(|dsn| Dsn::from_str(dsn).expect("Invalid SENTRY_DSN value"));
+
     let options = ClientOptions {
-        dsn: Some(Dsn::from_str(&config::CONFIG.sentry_dsn).unwrap()),
+        dsn,
         default_integrations: false,
         ..Default::default()
     }

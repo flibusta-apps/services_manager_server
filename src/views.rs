@@ -15,6 +15,7 @@ use tower_http::trace::{self, TraceLayer};
 use tracing::Level;
 
 use crate::config::CONFIG;
+use crate::error::AppError;
 
 pub type Database = Extension<PgPool>;
 
@@ -86,7 +87,7 @@ impl ServiceRow {
     }
 }
 
-async fn get_services(db: Database) -> impl IntoResponse {
+async fn get_services(db: Database) -> Result<impl IntoResponse, AppError> {
     let rows = sqlx::query_as!(
         ServiceRow,
         r#"
@@ -94,18 +95,17 @@ async fn get_services(db: Database) -> impl IntoResponse {
         "#
     )
     .fetch_all(&db.0)
-    .await
-    .unwrap();
+    .await?;
 
     let services: Vec<Service> = rows
         .into_iter()
-        .map(|row| row.try_into_service().expect("Failed to decrypt token"))
-        .collect();
+        .map(|row| row.try_into_service())
+        .collect::<Result<Vec<_>, _>>()?;
 
-    Json(services).into_response()
+    Ok(Json(services).into_response())
 }
 
-async fn get_service(Path(id): Path<i32>, db: Database) -> impl IntoResponse {
+async fn get_service(Path(id): Path<i32>, db: Database) -> Result<impl IntoResponse, AppError> {
     let service = sqlx::query_as!(
         ServiceInfo,
         r#"
@@ -114,16 +114,15 @@ async fn get_service(Path(id): Path<i32>, db: Database) -> impl IntoResponse {
         id
     )
     .fetch_optional(&db.0)
-    .await
-    .unwrap();
+    .await?;
 
-    match service {
+    Ok(match service {
         Some(v) => Json(v).into_response(),
         None => StatusCode::NOT_FOUND.into_response(),
-    }
+    })
 }
 
-async fn delete_service(Path(id): Path<i32>, db: Database) -> impl IntoResponse {
+async fn delete_service(Path(id): Path<i32>, db: Database) -> Result<impl IntoResponse, AppError> {
     let service = sqlx::query_as!(
         ServiceInfo,
         r#"
@@ -132,13 +131,12 @@ async fn delete_service(Path(id): Path<i32>, db: Database) -> impl IntoResponse 
         id
     )
     .fetch_optional(&db.0)
-    .await
-    .unwrap();
+    .await?;
 
-    match service {
+    Ok(match service {
         Some(v) => Json(v).into_response(),
         None => StatusCode::NOT_FOUND.into_response(),
-    }
+    })
 }
 
 #[derive(Deserialize)]
@@ -162,7 +160,10 @@ impl std::fmt::Debug for CreateServiceData {
     }
 }
 
-async fn create_service(db: Database, Json(data): Json<CreateServiceData>) -> impl IntoResponse {
+async fn create_service(
+    db: Database,
+    Json(data): Json<CreateServiceData>,
+) -> Result<impl IntoResponse, AppError> {
     let CreateServiceData {
         token,
         user,
@@ -178,12 +179,11 @@ async fn create_service(db: Database, Json(data): Json<CreateServiceData>) -> im
         user
     )
     .fetch_one(&db.0)
-    .await
-    .unwrap_or(Some(0))
-    .unwrap();
+    .await?
+    .unwrap_or(0);
 
     if exist_count >= BOTS_COUNT_LIMIT {
-        return StatusCode::PAYMENT_REQUIRED.into_response();
+        return Ok(StatusCode::PAYMENT_REQUIRED.into_response());
     };
 
     let token_hmac = crate::crypto::hmac_token(&token);
@@ -195,12 +195,11 @@ async fn create_service(db: Database, Json(data): Json<CreateServiceData>) -> im
         token_hmac
     )
     .fetch_one(&db.0)
-    .await
-    .unwrap_or(Some(false))
-    .unwrap();
+    .await?
+    .unwrap_or(false);
 
     if token_exists {
-        return StatusCode::CONFLICT.into_response();
+        return Ok(StatusCode::CONFLICT.into_response());
     }
 
     let encrypted = crate::crypto::encrypt_token(&token);
@@ -222,17 +221,16 @@ async fn create_service(db: Database, Json(data): Json<CreateServiceData>) -> im
         chrono::Local::now()
     )
         .fetch_one(&db.0)
-        .await
-        .unwrap();
+        .await?;
 
-    Json(service).into_response()
+    Ok(Json(service).into_response())
 }
 
 async fn update_state(
     Path(id): Path<i32>,
     db: Database,
     Json(state): Json<String>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, AppError> {
     let service = sqlx::query_as!(
         ServiceInfo,
         r#"
@@ -242,20 +240,19 @@ async fn update_state(
         id
     )
     .fetch_optional(&db.0)
-    .await
-    .unwrap();
+    .await?;
 
-    match service {
+    Ok(match service {
         Some(v) => Json(v).into_response(),
         None => StatusCode::NOT_FOUND.into_response(),
-    }
+    })
 }
 
 async fn update_cache(
     Path(id): Path<i32>,
     db: Database,
     Json(cache): Json<String>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, AppError> {
     let service = sqlx::query_as!(
         ServiceInfo,
         r#"
@@ -265,13 +262,12 @@ async fn update_cache(
         id
     )
     .fetch_optional(&db.0)
-    .await
-    .unwrap();
+    .await?;
 
-    match service {
+    Ok(match service {
         Some(v) => Json(v).into_response(),
         None => StatusCode::NOT_FOUND.into_response(),
-    }
+    })
 }
 
 async fn health_check() -> impl IntoResponse {
