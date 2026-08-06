@@ -160,6 +160,16 @@ impl std::fmt::Debug for CreateServiceData {
     }
 }
 
+/// POST / — create a service (bot registration).
+///
+/// Status code contract (relied on by the `book_bot` consumer, see
+/// `book_bot/src/bots/registration/register.rs`):
+/// - `200` — created.
+/// - `402 Payment Required` — the per-user bot count limit (`BOTS_COUNT_LIMIT`)
+///   was reached. Not a real payment flow; this is an established, if
+///   non-standard, "limit reached" signal that `book_bot` already parses.
+/// - `409 Conflict` — the token is already registered (unique constraint on
+///   `token_hmac`).
 async fn create_service(
     db: Database,
     Json(data): Json<CreateServiceData>,
@@ -172,13 +182,21 @@ async fn create_service(
         username,
     } = data;
 
+    let mut tx = db.0.begin().await?;
+
+    // Serialize concurrent bot-count-limit checks and inserts for the same
+    // user, regardless of connection-pool size.
+    sqlx::query!("SELECT pg_advisory_xact_lock($1)", user)
+        .execute(&mut *tx)
+        .await?;
+
     let exist_count = sqlx::query_scalar!(
         r#"
         SELECT COUNT(*) FROM services WHERE "user" = $1
         "#,
         user
     )
-    .fetch_one(&db.0)
+    .fetch_one(&mut *tx)
     .await?
     .unwrap_or(0);
 
@@ -188,27 +206,13 @@ async fn create_service(
 
     let token_hmac = crate::crypto::hmac_token(&token);
 
-    let token_exists = sqlx::query_scalar!(
-        r#"
-        SELECT EXISTS(SELECT 1 FROM services WHERE token_hmac = $1)
-        "#,
-        token_hmac
-    )
-    .fetch_one(&db.0)
-    .await?
-    .unwrap_or(false);
-
-    if token_exists {
-        return Ok(StatusCode::CONFLICT.into_response());
-    }
-
     let encrypted = crate::crypto::encrypt_token(&token);
 
-    let service = sqlx::query_as!(
+    let insert_result = sqlx::query_as!(
         ServiceInfo,
         r#"
         INSERT INTO services (token_ciphertext, token_nonce, token_hmac, "user", status, cache, username, created_time)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, now())
         RETURNING id, "user", status, created_time, cache, username
         "#,
         encrypted.ciphertext,
@@ -217,11 +221,20 @@ async fn create_service(
         user,
         status,
         cache,
-        username,
-        chrono::Local::now()
+        username
     )
-        .fetch_one(&db.0)
-        .await?;
+    .fetch_one(&mut *tx)
+    .await;
+
+    let service = match insert_result {
+        Ok(v) => v,
+        Err(sqlx::Error::Database(db_err)) if db_err.code().as_deref() == Some("23505") => {
+            return Ok(StatusCode::CONFLICT.into_response());
+        }
+        Err(e) => return Err(AppError::from(e)),
+    };
+
+    tx.commit().await?;
 
     Ok(Json(service).into_response())
 }
