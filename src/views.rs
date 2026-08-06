@@ -21,8 +21,62 @@ pub type Database = Extension<PgPool>;
 
 const BOTS_COUNT_LIMIT: i64 = 5;
 
+// Mirrors book_bot's registration status (`book_bot/src/bots/registration/register.rs`,
+// which only ever sends "approved") and its `BotCache` enum
+// (`book_bot/src/bots_manager/bot_manager_client.rs`). The DB columns are
+// `status VARCHAR(12)` / `cache VARCHAR(12)`.
+const ALLOWED_STATUSES: &[&str] = &["approved"];
+const ALLOWED_CACHE_VALUES: &[&str] = &["original", "cache", "no_cache"];
+
 fn mask_token(token: &str) -> String {
     format!("{}…", &token[..token.len().min(8)])
+}
+
+#[derive(Serialize)]
+struct ErrorResponse {
+    error: String,
+}
+
+/// Validates the Telegram bot token format: `^\d+:[A-Za-z0-9_-]{35}$`.
+fn is_valid_telegram_token_format(token: &str) -> bool {
+    let Some((id_part, secret_part)) = token.split_once(':') else {
+        return false;
+    };
+
+    if id_part.is_empty() || !id_part.bytes().all(|b| b.is_ascii_digit()) {
+        return false;
+    }
+
+    if secret_part.len() != 35 {
+        return false;
+    }
+
+    secret_part
+        .bytes()
+        .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+
+fn validate_create_service(data: &CreateServiceData) -> Result<(), String> {
+    if data.token.is_empty()
+        || data.token.len() > 128
+        || !is_valid_telegram_token_format(&data.token)
+    {
+        return Err("invalid token format".to_string());
+    }
+
+    if !ALLOWED_STATUSES.contains(&data.status.as_str()) {
+        return Err("status must be one of: approved".to_string());
+    }
+
+    if !ALLOWED_CACHE_VALUES.contains(&data.cache.as_str()) {
+        return Err("cache must be one of: original, cache, no_cache".to_string());
+    }
+
+    if data.username.is_empty() || data.username.len() > 64 {
+        return Err("username must be 1-64 characters".to_string());
+    }
+
+    Ok(())
 }
 
 #[derive(Serialize)]
@@ -170,10 +224,21 @@ impl std::fmt::Debug for CreateServiceData {
 ///   non-standard, "limit reached" signal that `book_bot` already parses.
 /// - `409 Conflict` — the token is already registered (unique constraint on
 ///   `token_hmac`).
+/// - `422 Unprocessable Entity` — the request body failed validation (invalid
+///   token format, disallowed `status`/`cache` value, or `username` out of
+///   range).
 async fn create_service(
     db: Database,
     Json(data): Json<CreateServiceData>,
 ) -> Result<impl IntoResponse, AppError> {
+    if let Err(msg) = validate_create_service(&data) {
+        return Ok((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse { error: msg }),
+        )
+            .into_response());
+    }
+
     let CreateServiceData {
         token,
         user,
@@ -239,17 +304,27 @@ async fn create_service(
     Ok(Json(service).into_response())
 }
 
-async fn update_state(
+async fn update_status(
     Path(id): Path<i32>,
     db: Database,
-    Json(state): Json<String>,
+    Json(status): Json<String>,
 ) -> Result<impl IntoResponse, AppError> {
+    if !ALLOWED_STATUSES.contains(&status.as_str()) {
+        return Ok((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse {
+                error: "status must be one of: approved".to_string(),
+            }),
+        )
+            .into_response());
+    }
+
     let service = sqlx::query_as!(
         ServiceInfo,
         r#"
         UPDATE services SET status = $1 WHERE id = $2 RETURNING id, "user", status, created_time, cache, username
         "#,
-        state,
+        status,
         id
     )
     .fetch_optional(&db.0)
@@ -266,6 +341,16 @@ async fn update_cache(
     db: Database,
     Json(cache): Json<String>,
 ) -> Result<impl IntoResponse, AppError> {
+    if !ALLOWED_CACHE_VALUES.contains(&cache.as_str()) {
+        return Ok((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse {
+                error: "cache must be one of: original, cache, no_cache".to_string(),
+            }),
+        )
+            .into_response());
+    }
+
     let service = sqlx::query_as!(
         ServiceInfo,
         r#"
@@ -328,7 +413,7 @@ pub async fn get_router(client: PgPool) -> Router {
         .route("/{id}/", get(get_service))
         .route("/{id}/", delete(delete_service))
         .route("/", post(create_service))
-        .route("/{id}/update_status", patch(update_state))
+        .route("/{id}/update_status", patch(update_status))
         .route("/{id}/update_cache", patch(update_cache))
         .layer(middleware::from_fn(auth))
         .layer(Extension(client))
