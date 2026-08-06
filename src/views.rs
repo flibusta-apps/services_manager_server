@@ -445,7 +445,8 @@ pub fn get_router(client: PgPool) -> Router {
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
-                .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
+                .on_response(trace::DefaultOnResponse::new().level(Level::DEBUG))
+                .on_failure(trace::DefaultOnFailure::new().level(Level::ERROR)),
         )
 }
 

@@ -15,6 +15,7 @@ pub struct Config {
 
     pub postgres_pool_max_connections: u32,
     pub postgres_pool_acquire_timeout_sec: u64,
+    pub postgres_pool_max_lifetime_sec: u64,
     pub application_name: String,
 
     pub port: u16,
@@ -52,7 +53,11 @@ impl Config {
             postgres_pool_acquire_timeout_sec: std::env::var("POSTGRES_POOL_ACQUIRE_TIMEOUT_SEC")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(10),
+                .unwrap_or(5),
+            postgres_pool_max_lifetime_sec: std::env::var("POSTGRES_POOL_MAX_LIFETIME_SEC")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(1800),
             application_name: get_env_or("APPLICATION_NAME", "services_manager_server"),
 
             port: std::env::var("PORT")

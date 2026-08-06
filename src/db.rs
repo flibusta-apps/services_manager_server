@@ -24,16 +24,20 @@ pub async fn get_pg_pool() -> PgPool {
     );
 
     info!(
-        "Connecting to Postgres as {} (max_connections={}, acquire_timeout={}s)",
+        "Connecting to Postgres as {} (max_connections={}, acquire_timeout={}s, max_lifetime={}s)",
         CONFIG.application_name,
         CONFIG.postgres_pool_max_connections,
-        CONFIG.postgres_pool_acquire_timeout_sec
+        CONFIG.postgres_pool_acquire_timeout_sec,
+        CONFIG.postgres_pool_max_lifetime_sec
     );
 
     PgPoolOptions::new()
         .max_connections(CONFIG.postgres_pool_max_connections)
         .acquire_timeout(std::time::Duration::from_secs(
             CONFIG.postgres_pool_acquire_timeout_sec,
+        ))
+        .max_lifetime(std::time::Duration::from_secs(
+            CONFIG.postgres_pool_max_lifetime_sec,
         ))
         .connect(&database_url)
         .await
