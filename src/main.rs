@@ -16,7 +16,6 @@ async fn start_app() {
 
     // Run migrations
     db::run_migrations(&pool).await;
-    db::backfill_token_encryption(&pool).await;
 
     let app = views::get_router(pool).await;
 
