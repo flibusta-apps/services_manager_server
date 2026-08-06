@@ -16,6 +16,8 @@ pub struct Config {
     pub postgres_pool_max_connections: u32,
     pub postgres_pool_acquire_timeout_sec: u64,
     pub application_name: String,
+
+    pub port: u16,
 }
 
 fn get_env(env: &'static str) -> String {
@@ -52,6 +54,11 @@ impl Config {
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(10),
             application_name: get_env_or("APPLICATION_NAME", "services_manager_server"),
+
+            port: std::env::var("PORT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(8080),
         }
     }
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO services (token_ciphertext, token_nonce, token_hmac, \"user\", status, cache, username, created_time)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n        RETURNING id, \"user\", status, created_time, cache, username\n        ",
+  "query": "\n        INSERT INTO services (token_ciphertext, token_nonce, token_hmac, \"user\", status, cache, username, created_time)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, now())\n        RETURNING id, \"user\", status, created_time, cache, username\n        ",
   "describe": {
     "columns": [
       {
@@ -42,8 +42,7 @@
         "Int8",
         "Varchar",
         "Varchar",
-        "Varchar",
-        "Timestamptz"
+        "Varchar"
       ]
     },
     "nullable": [
@@ -55,5 +54,5 @@
       false
     ]
   },
-  "hash": "71793271df425b0bbe2482a7757c4b00098625ef6ad2d2ee9d81b50ba1e47975"
+  "hash": "f2fcb49633cbb273a4bb91f8f2bdf5a3827b6b9068e7d7978742b7b2bfed42ed"
 }

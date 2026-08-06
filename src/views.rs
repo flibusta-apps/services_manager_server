@@ -372,6 +372,16 @@ async fn health_check() -> impl IntoResponse {
     StatusCode::OK
 }
 
+async fn ready_check(db: Database) -> impl IntoResponse {
+    match sqlx::query("SELECT 1").execute(&db.0).await {
+        Ok(_) => StatusCode::OK,
+        Err(e) => {
+            tracing::error!("Readiness check failed: {}", e);
+            StatusCode::SERVICE_UNAVAILABLE
+        }
+    }
+}
+
 //
 
 async fn auth(req: Request<axum::body::Body>, next: Next) -> Result<Response, StatusCode> {
@@ -405,8 +415,13 @@ async fn auth(req: Request<axum::body::Body>, next: Next) -> Result<Response, St
     Ok(next.run(req).await)
 }
 
-pub async fn get_router(client: PgPool) -> Router {
+pub fn get_router(client: PgPool) -> Router {
     let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
+
+    let health_router = Router::new()
+        .route("/health", get(health_check))
+        .route("/ready", get(ready_check))
+        .layer(Extension(client.clone()));
 
     let app_router = Router::new()
         .route("/", get(get_services))
@@ -418,8 +433,6 @@ pub async fn get_router(client: PgPool) -> Router {
         .layer(middleware::from_fn(auth))
         .layer(Extension(client))
         .layer(prometheus_layer);
-
-    let health_router = Router::new().route("/health", get(health_check));
 
     let metric_router = Router::new()
         .route("/metrics", get(|| async move { metric_handle.render() }))
@@ -434,4 +447,174 @@ pub async fn get_router(client: PgPool) -> Router {
                 .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
                 .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_valid_data() -> CreateServiceData {
+        CreateServiceData {
+            token: "123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".to_string(),
+            user: 1,
+            status: "approved".to_string(),
+            cache: "original".to_string(),
+            username: "some_username".to_string(),
+        }
+    }
+
+    #[test]
+    fn telegram_token_format_valid() {
+        assert!(is_valid_telegram_token_format(
+            "123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ));
+        // 11-digit id part is also allowed.
+        assert!(is_valid_telegram_token_format(
+            "12345678901:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ));
+    }
+
+    #[test]
+    fn telegram_token_format_missing_colon() {
+        assert!(!is_valid_telegram_token_format(
+            "123456789AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ));
+    }
+
+    #[test]
+    fn telegram_token_format_non_numeric_id() {
+        assert!(!is_valid_telegram_token_format(
+            "12345678a:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ));
+    }
+
+    #[test]
+    fn telegram_token_format_secret_too_short() {
+        // 34 chars instead of 35.
+        assert!(!is_valid_telegram_token_format(
+            "123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ));
+    }
+
+    #[test]
+    fn telegram_token_format_secret_too_long() {
+        // 36 chars instead of 35.
+        assert!(!is_valid_telegram_token_format(
+            "123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ));
+    }
+
+    #[test]
+    fn telegram_token_format_disallowed_chars_in_secret() {
+        assert!(!is_valid_telegram_token_format(
+            "123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA!!"
+        ));
+    }
+
+    #[test]
+    fn telegram_token_format_empty() {
+        assert!(!is_valid_telegram_token_format(""));
+    }
+
+    #[test]
+    fn validate_create_service_valid() {
+        assert!(validate_create_service(&make_valid_data()).is_ok());
+
+        // Other allowed cache values.
+        let mut data = make_valid_data();
+        data.cache = "cache".to_string();
+        assert!(validate_create_service(&data).is_ok());
+
+        let mut data = make_valid_data();
+        data.cache = "no_cache".to_string();
+        assert!(validate_create_service(&data).is_ok());
+    }
+
+    #[test]
+    fn validate_create_service_bad_token_format() {
+        let mut data = make_valid_data();
+        data.token = "not-a-valid-token".to_string();
+        assert!(validate_create_service(&data).is_err());
+    }
+
+    #[test]
+    fn validate_create_service_disallowed_status() {
+        let mut data = make_valid_data();
+        data.status = "pending".to_string();
+        assert!(validate_create_service(&data).is_err());
+    }
+
+    #[test]
+    fn validate_create_service_disallowed_cache() {
+        let mut data = make_valid_data();
+        data.cache = "invalid_cache".to_string();
+        assert!(validate_create_service(&data).is_err());
+    }
+
+    #[test]
+    fn validate_create_service_empty_username() {
+        let mut data = make_valid_data();
+        data.username = "".to_string();
+        assert!(validate_create_service(&data).is_err());
+    }
+
+    #[test]
+    fn validate_create_service_username_too_long() {
+        let mut data = make_valid_data();
+        data.username = "a".repeat(65);
+        assert!(validate_create_service(&data).is_err());
+    }
+
+    #[test]
+    fn validate_create_service_token_too_long() {
+        let mut data = make_valid_data();
+        data.token = format!("123456789:{}", "A".repeat(200));
+        assert!(validate_create_service(&data).is_err());
+    }
+
+    #[tokio::test]
+    async fn health_check_returns_ok() {
+        let response = health_check().await.into_response();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn ready_check_returns_ok_when_db_is_up() {
+        let user = match std::env::var("POSTGRES_USER") {
+            Ok(v) => v,
+            Err(_) => return,
+        };
+        let password = match std::env::var("POSTGRES_PASSWORD") {
+            Ok(v) => v,
+            Err(_) => return,
+        };
+        let host = match std::env::var("POSTGRES_HOST") {
+            Ok(v) => v,
+            Err(_) => return,
+        };
+        let port = match std::env::var("POSTGRES_PORT") {
+            Ok(v) => v,
+            Err(_) => return,
+        };
+        let db = match std::env::var("POSTGRES_DB") {
+            Ok(v) => v,
+            Err(_) => return,
+        };
+
+        let database_url = format!(
+            "postgresql://{}:{}@{}:{}/{}",
+            user, password, host, port, db
+        );
+
+        let pool = match sqlx::postgres::PgPoolOptions::new()
+            .connect(&database_url)
+            .await
+        {
+            Ok(p) => p,
+            Err(_) => return,
+        };
+
+        let response = ready_check(Extension(pool)).await.into_response();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
 }
