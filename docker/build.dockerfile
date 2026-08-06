@@ -4,6 +4,7 @@ WORKDIR /app
 
 COPY . .
 
+ENV SQLX_OFFLINE=true
 RUN cargo build --release --bin services_manager_server
 
 

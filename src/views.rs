@@ -10,6 +10,7 @@ use axum_prometheus::PrometheusMetricLayer;
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use subtle::ConstantTimeEq;
 use tower_http::trace::{self, TraceLayer};
 use tracing::Level;
 
@@ -211,7 +212,19 @@ async fn auth(req: Request<axum::body::Body>, next: Next) -> Result<Response, St
         return Err(StatusCode::UNAUTHORIZED);
     };
 
-    if auth_header != CONFIG.api_key {
+    let token = if let Some(token) = auth_header.strip_prefix("Bearer ") {
+        token
+    } else {
+        return Err(StatusCode::UNAUTHORIZED);
+    };
+
+    let token_bytes = token.as_bytes();
+    let api_key_bytes = CONFIG.api_key.as_bytes();
+
+    let is_valid =
+        token_bytes.len() == api_key_bytes.len() && bool::from(token_bytes.ct_eq(api_key_bytes));
+
+    if !is_valid {
         return Err(StatusCode::UNAUTHORIZED);
     }
 
@@ -234,8 +247,9 @@ pub async fn get_router(client: PgPool) -> Router {
 
     let health_router = Router::new().route("/health", get(health_check));
 
-    let metric_router =
-        Router::new().route("/metrics", get(|| async move { metric_handle.render() }));
+    let metric_router = Router::new()
+        .route("/metrics", get(|| async move { metric_handle.render() }))
+        .layer(middleware::from_fn(auth));
 
     Router::new()
         .merge(app_router)

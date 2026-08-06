@@ -2299,6 +2299,7 @@ dependencies = [
  "sentry-tracing",
  "serde",
  "sqlx",
+ "subtle",
  "tokio",
  "tower-http",
  "tracing",
