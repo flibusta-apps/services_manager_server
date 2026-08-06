@@ -20,7 +20,11 @@ pub type Database = Extension<PgPool>;
 
 const BOTS_COUNT_LIMIT: i64 = 5;
 
-#[derive(sqlx::FromRow, Serialize)]
+fn mask_token(token: &str) -> String {
+    format!("{}…", &token[..token.len().min(8)])
+}
+
+#[derive(Serialize)]
 pub struct Service {
     pub id: i32,
     pub token: String,
@@ -31,25 +35,81 @@ pub struct Service {
     pub username: String,
 }
 
+impl std::fmt::Debug for Service {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Service")
+            .field("id", &self.id)
+            .field("token", &mask_token(&self.token))
+            .field("user", &self.user)
+            .field("status", &self.status)
+            .field("created_time", &self.created_time)
+            .field("cache", &self.cache)
+            .field("username", &self.username)
+            .finish()
+    }
+}
+
+#[derive(sqlx::FromRow, Serialize)]
+pub struct ServiceInfo {
+    pub id: i32,
+    pub user: i64,
+    pub status: String,
+    pub created_time: DateTime<chrono::Local>,
+    pub cache: String,
+    pub username: String,
+}
+
+#[derive(sqlx::FromRow)]
+struct ServiceRow {
+    pub id: i32,
+    pub token_ciphertext: Vec<u8>,
+    pub token_nonce: Vec<u8>,
+    pub user: i64,
+    pub status: String,
+    pub created_time: DateTime<chrono::Local>,
+    pub cache: String,
+    pub username: String,
+}
+
+impl ServiceRow {
+    fn try_into_service(self) -> Result<Service, String> {
+        let token = crate::crypto::decrypt_token(&self.token_ciphertext, &self.token_nonce)?;
+        Ok(Service {
+            id: self.id,
+            token,
+            user: self.user,
+            status: self.status,
+            created_time: self.created_time,
+            cache: self.cache,
+            username: self.username,
+        })
+    }
+}
+
 async fn get_services(db: Database) -> impl IntoResponse {
-    let services = sqlx::query_as!(
-        Service,
+    let rows = sqlx::query_as!(
+        ServiceRow,
         r#"
-        SELECT * FROM services
+        SELECT id, token_ciphertext AS "token_ciphertext!", token_nonce AS "token_nonce!", "user", status, created_time, cache, username FROM services
         "#
     )
     .fetch_all(&db.0)
     .await
     .unwrap();
 
+    let services: Vec<Service> = rows
+        .into_iter()
+        .map(|row| row.try_into_service().expect("Failed to decrypt token"))
+        .collect();
+
     Json(services).into_response()
 }
 
 async fn get_service(Path(id): Path<i32>, db: Database) -> impl IntoResponse {
     let service = sqlx::query_as!(
-        Service,
+        ServiceInfo,
         r#"
-        SELECT * FROM services WHERE id = $1
+        SELECT id, "user", status, created_time, cache, username FROM services WHERE id = $1
         "#,
         id
     )
@@ -65,9 +125,9 @@ async fn get_service(Path(id): Path<i32>, db: Database) -> impl IntoResponse {
 
 async fn delete_service(Path(id): Path<i32>, db: Database) -> impl IntoResponse {
     let service = sqlx::query_as!(
-        Service,
+        ServiceInfo,
         r#"
-        DELETE FROM services WHERE id = $1 RETURNING *
+        DELETE FROM services WHERE id = $1 RETURNING id, "user", status, created_time, cache, username
         "#,
         id
     )
@@ -88,6 +148,18 @@ pub struct CreateServiceData {
     pub status: String,
     pub cache: String,
     pub username: String,
+}
+
+impl std::fmt::Debug for CreateServiceData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CreateServiceData")
+            .field("token", &mask_token(&self.token))
+            .field("user", &self.user)
+            .field("status", &self.status)
+            .field("cache", &self.cache)
+            .field("username", &self.username)
+            .finish()
+    }
 }
 
 async fn create_service(db: Database, Json(data): Json<CreateServiceData>) -> impl IntoResponse {
@@ -114,11 +186,13 @@ async fn create_service(db: Database, Json(data): Json<CreateServiceData>) -> im
         return StatusCode::PAYMENT_REQUIRED.into_response();
     };
 
+    let token_hmac = crate::crypto::hmac_token(&token);
+
     let token_exists = sqlx::query_scalar!(
         r#"
-        SELECT EXISTS(SELECT 1 FROM services WHERE token = $1)
+        SELECT EXISTS(SELECT 1 FROM services WHERE token_hmac = $1)
         "#,
-        token
+        token_hmac
     )
     .fetch_one(&db.0)
     .await
@@ -129,12 +203,18 @@ async fn create_service(db: Database, Json(data): Json<CreateServiceData>) -> im
         return StatusCode::CONFLICT.into_response();
     }
 
+    let encrypted = crate::crypto::encrypt_token(&token);
+
     let service = sqlx::query_as!(
-        Service,
+        ServiceInfo,
         r#"
-        INSERT INTO services (token, "user", status, cache, username, created_time) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *
+        INSERT INTO services (token_ciphertext, token_nonce, token_hmac, "user", status, cache, username, created_time)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING id, "user", status, created_time, cache, username
         "#,
-        token,
+        encrypted.ciphertext,
+        encrypted.nonce,
+        token_hmac,
         user,
         status,
         cache,
@@ -154,9 +234,9 @@ async fn update_state(
     Json(state): Json<String>,
 ) -> impl IntoResponse {
     let service = sqlx::query_as!(
-        Service,
+        ServiceInfo,
         r#"
-        UPDATE services SET status = $1 WHERE id = $2 RETURNING *
+        UPDATE services SET status = $1 WHERE id = $2 RETURNING id, "user", status, created_time, cache, username
         "#,
         state,
         id
@@ -177,9 +257,9 @@ async fn update_cache(
     Json(cache): Json<String>,
 ) -> impl IntoResponse {
     let service = sqlx::query_as!(
-        Service,
+        ServiceInfo,
         r#"
-        UPDATE services SET cache = $1 WHERE id = $2 RETURNING *
+        UPDATE services SET cache = $1 WHERE id = $2 RETURNING id, "user", status, created_time, cache, username
         "#,
         cache,
         id

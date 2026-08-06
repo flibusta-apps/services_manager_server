@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE services SET token_ciphertext = $1, token_nonce = $2, token_hmac = $3 WHERE id = $4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bdbe318c2dee9fcc7613a5acd4e0dcb32572da3ec4953d41273f1b86fc25f3a0"
+}

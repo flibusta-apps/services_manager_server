@@ -10,6 +10,8 @@ pub struct Config {
     pub postgres_db: String,
 
     pub sentry_dsn: String,
+
+    pub token_enc_key: String,
 }
 
 fn get_env(env: &'static str) -> String {
@@ -28,6 +30,8 @@ impl Config {
             postgres_db: get_env("POSTGRES_DB"),
 
             sentry_dsn: get_env("SENTRY_DSN"),
+
+            token_enc_key: get_env("TOKEN_ENC_KEY"),
         }
     }
 }

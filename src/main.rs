@@ -1,4 +1,5 @@
 pub mod config;
+pub mod crypto;
 pub mod db;
 pub mod views;
 
@@ -15,6 +16,7 @@ async fn start_app() {
 
     // Run migrations
     db::run_migrations(&pool).await;
+    db::backfill_token_encryption(&pool).await;
 
     let app = views::get_router(pool).await;
 

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE services SET status = $1 WHERE id = $2 RETURNING *\n        ",
+  "query": "\n        UPDATE services SET status = $1 WHERE id = $2 RETURNING id, \"user\", status, created_time, cache, username\n        ",
   "describe": {
     "columns": [
       {
@@ -10,31 +10,26 @@
       },
       {
         "ordinal": 1,
-        "name": "token",
-        "type_info": "Varchar"
-      },
-      {
-        "ordinal": 2,
         "name": "user",
         "type_info": "Int8"
       },
       {
-        "ordinal": 3,
+        "ordinal": 2,
         "name": "status",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 4,
+        "ordinal": 3,
         "name": "created_time",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 5,
+        "ordinal": 4,
         "name": "cache",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 6,
+        "ordinal": 5,
         "name": "username",
         "type_info": "Varchar"
       }
@@ -51,9 +46,8 @@
       false,
       false,
       false,
-      false,
       false
     ]
   },
-  "hash": "ed40414712a25612c336364c52181f98531a801fbe8bdd885683f56c291e3337"
+  "hash": "f329f4771593ddb5e71f8e0ab7dffa697ca9d651333745f0c666b25f88b0492d"
 }

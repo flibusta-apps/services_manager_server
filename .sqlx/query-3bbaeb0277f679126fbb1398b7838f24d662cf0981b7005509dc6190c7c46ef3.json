@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT * FROM services WHERE id = $1\n        ",
+  "query": "\n        SELECT id, token_ciphertext AS \"token_ciphertext!\", token_nonce AS \"token_nonce!\", \"user\", status, created_time, cache, username FROM services\n        ",
   "describe": {
     "columns": [
       {
@@ -10,43 +10,47 @@
       },
       {
         "ordinal": 1,
-        "name": "token",
-        "type_info": "Varchar"
+        "name": "token_ciphertext!",
+        "type_info": "Bytea"
       },
       {
         "ordinal": 2,
+        "name": "token_nonce!",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 3,
         "name": "user",
         "type_info": "Int8"
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "status",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "created_time",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "cache",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "username",
         "type_info": "Varchar"
       }
     ],
     "parameters": {
-      "Left": [
-        "Int4"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
-      false,
+      true,
+      true,
       false,
       false,
       false,
@@ -54,5 +58,5 @@
       false
     ]
   },
-  "hash": "0137a8e4f27051dfccfb79da48211f5bb0fd54079f082b337b0eff84add7432d"
+  "hash": "3bbaeb0277f679126fbb1398b7838f24d662cf0981b7005509dc6190c7c46ef3"
 }

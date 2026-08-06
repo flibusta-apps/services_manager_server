@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT EXISTS(SELECT 1 FROM services WHERE token = $1)\n        ",
+  "query": "\n        SELECT EXISTS(SELECT 1 FROM services WHERE token_hmac = $1)\n        ",
   "describe": {
     "columns": [
       {
@@ -11,12 +11,12 @@
     ],
     "parameters": {
       "Left": [
-        "Text"
+        "Bytea"
       ]
     },
     "nullable": [
       null
     ]
   },
-  "hash": "bee5518b7ca0d2d937a14d346fcc80de1018f7c685e2356ee84d8882ba3cd554"
+  "hash": "951d1e9e654eef5ffd252a320a1355d853ff1f759c5615e4684f8a959f02dcdd"
 }

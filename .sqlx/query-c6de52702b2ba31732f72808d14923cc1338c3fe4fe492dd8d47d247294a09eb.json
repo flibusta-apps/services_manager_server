@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO services (token, \"user\", status, cache, username, created_time) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *\n        ",
+  "query": "\n        UPDATE services SET cache = $1 WHERE id = $2 RETURNING id, \"user\", status, created_time, cache, username\n        ",
   "describe": {
     "columns": [
       {
@@ -10,31 +10,26 @@
       },
       {
         "ordinal": 1,
-        "name": "token",
-        "type_info": "Varchar"
-      },
-      {
-        "ordinal": 2,
         "name": "user",
         "type_info": "Int8"
       },
       {
-        "ordinal": 3,
+        "ordinal": 2,
         "name": "status",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 4,
+        "ordinal": 3,
         "name": "created_time",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 5,
+        "ordinal": 4,
         "name": "cache",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 6,
+        "ordinal": 5,
         "name": "username",
         "type_info": "Varchar"
       }
@@ -42,11 +37,7 @@
     "parameters": {
       "Left": [
         "Varchar",
-        "Int8",
-        "Varchar",
-        "Varchar",
-        "Varchar",
-        "Timestamptz"
+        "Int4"
       ]
     },
     "nullable": [
@@ -55,9 +46,8 @@
       false,
       false,
       false,
-      false,
       false
     ]
   },
-  "hash": "307f9c07b9c5cd0b88be896f0a6ce4891d1c84f7c987fc4614d727bbe72f5540"
+  "hash": "c6de52702b2ba31732f72808d14923cc1338c3fe4fe492dd8d47d247294a09eb"
 }

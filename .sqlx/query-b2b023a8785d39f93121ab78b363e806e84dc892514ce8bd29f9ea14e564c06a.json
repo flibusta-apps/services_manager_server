@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT * FROM services\n        ",
+  "query": "\n        SELECT id, \"user\", status, created_time, cache, username FROM services WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -10,40 +10,36 @@
       },
       {
         "ordinal": 1,
-        "name": "token",
-        "type_info": "Varchar"
-      },
-      {
-        "ordinal": 2,
         "name": "user",
         "type_info": "Int8"
       },
       {
-        "ordinal": 3,
+        "ordinal": 2,
         "name": "status",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 4,
+        "ordinal": 3,
         "name": "created_time",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 5,
+        "ordinal": 4,
         "name": "cache",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 6,
+        "ordinal": 5,
         "name": "username",
         "type_info": "Varchar"
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Int4"
+      ]
     },
     "nullable": [
-      false,
       false,
       false,
       false,
@@ -52,5 +48,5 @@
       false
     ]
   },
-  "hash": "9978e9199895c9fc8fe8f7fcfc30ff8d2a2d586e116a5b94f8e40e7c2971a110"
+  "hash": "b2b023a8785d39f93121ab78b363e806e84dc892514ce8bd29f9ea14e564c06a"
 }
