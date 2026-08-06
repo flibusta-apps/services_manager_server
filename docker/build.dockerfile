@@ -11,7 +11,10 @@ RUN mkdir -p src && echo "fn main() {}" > src/main.rs \
 
 COPY . .
 
-RUN cargo build --release --bin services_manager_server
+# Force cargo to rebuild the binary: BuildKit preserves mtimes from the
+# git checkout, so cargo's fingerprint sees no change and skips the rebuild,
+# leaving the dummy `fn main() {}` from the dependency-caching step in place.
+RUN touch src/*.rs && cargo build --release --bin services_manager_server
 
 
 FROM debian:bookworm-slim
