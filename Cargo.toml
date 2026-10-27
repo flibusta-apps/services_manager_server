@@ -24,7 +24,7 @@ serde = { version = "1.0.219", features = ["derive"] }
 
 tokio = { version = "1.44.2", features = ["full"] }
 axum = { version = "0.8.1", features = ["json"] }
-axum-prometheus = "0.9.0"
+axum-prometheus = "0.10.1"
 chrono = { version = "0.4.40", features = ["serde"] }
 sentry = { version = "0.42.0", features = ["debug-images"] }
 
