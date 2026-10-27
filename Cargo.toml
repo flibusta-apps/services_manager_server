@@ -26,7 +26,7 @@ tokio = { version = "1.44.2", features = ["full"] }
 axum = { version = "0.8.1", features = ["json"] }
 axum-prometheus = "0.9.0"
 chrono = { version = "0.4.40", features = ["serde"] }
-sentry = { version = "0.42.0", features = ["debug-images"] }
+sentry = { version = "0.49.3", features = ["debug-images"] }
 
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"]}
