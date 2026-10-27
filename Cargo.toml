@@ -10,7 +10,6 @@ debug = false
 strip = true
 lto = true
 codegen-units = 1
-panic = 'abort'
 
 [profile.profiling]
 inherits = "release"
@@ -32,9 +31,9 @@ sentry = { version = "0.42.0", features = ["debug-images"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"]}
 sentry-tracing = "0.42.0"
-tower-http = { version = "0.6.2", features = ["trace"] }
+tower-http = { version = "0.6.2", features = ["trace", "timeout"] }
 
-sqlx = { version = "0.8.3", features = ["runtime-tokio", "postgres", "macros", "chrono", "migrate"] }
+sqlx = { version = "0.8.3", features = ["runtime-tokio", "postgres", "macros", "chrono", "migrate", "tls-rustls"] }
 subtle = "2.6.1"
 
 aes-gcm = "0.10"

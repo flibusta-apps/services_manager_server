@@ -7,11 +7,15 @@ pub mod views;
 use sentry::{integrations::debug_images::DebugImagesIntegration, types::Dsn, ClientOptions};
 use sentry_tracing::EventFilter;
 use tracing::info;
-use tracing_subscriber::{filter, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use std::{net::SocketAddr, str::FromStr};
 
 async fn start_app() {
+    // Validate configuration and secrets before touching DB / binding.
+    let _ = &*config::CONFIG;
+    crypto::init();
+
     // Initialize database pool
     let pool = db::get_pg_pool().await;
 
@@ -64,7 +68,6 @@ async fn main() {
 
     let options = ClientOptions {
         dsn,
-        default_integrations: false,
         ..Default::default()
     }
     .add_integration(DebugImagesIntegration::new());
@@ -76,9 +79,11 @@ async fn main() {
         _ => EventFilter::Ignore,
     });
 
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+
     tracing_subscriber::registry()
+        .with(env_filter)
         .with(tracing_subscriber::fmt::layer().with_target(false))
-        .with(filter::LevelFilter::INFO)
         .with(sentry_layer)
         .init();
 
