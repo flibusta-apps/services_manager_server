@@ -44,6 +44,24 @@ static TOKEN_CRYPTO: once_cell::sync::Lazy<TokenCrypto> = once_cell::sync::Lazy:
     }
 });
 
+/// Forces key parsing/validation so a bad `TOKEN_ENC_KEY` fails at startup.
+pub fn init() {
+    once_cell::sync::Lazy::force(&TOKEN_CRYPTO);
+}
+
+const NONCE_LEN: usize = 12;
+
+fn checked_nonce(nonce: &[u8]) -> Result<&Nonce<<Aes256Gcm as AeadCore>::NonceSize>, String> {
+    if nonce.len() != NONCE_LEN {
+        return Err(format!(
+            "invalid nonce length: expected {}, got {}",
+            NONCE_LEN,
+            nonce.len()
+        ));
+    }
+    Ok(Nonce::from_slice(nonce))
+}
+
 pub struct EncryptedToken {
     pub ciphertext: Vec<u8>,
     pub nonce: Vec<u8>,
@@ -63,7 +81,7 @@ pub fn encrypt_token(plaintext: &str) -> EncryptedToken {
 
 pub fn decrypt_token(ciphertext: &[u8], nonce: &[u8]) -> Result<String, String> {
     let cipher = Aes256Gcm::new(&TOKEN_CRYPTO.enc_key);
-    let nonce = Nonce::from_slice(nonce);
+    let nonce = checked_nonce(nonce)?;
     let plaintext = cipher
         .decrypt(nonce, ciphertext)
         .map_err(|_| "failed to decrypt token".to_string())?;
@@ -87,6 +105,14 @@ mod tests {
     // before any test runs. Full encrypt/decrypt/hmac round-trip coverage
     // through the real `TOKEN_CRYPTO` singleton is exercised by the
     // integration smoke test against a running server instead.
+
+    #[test]
+    fn nonce_length_is_checked() {
+        assert!(checked_nonce(&[0u8; 12]).is_ok());
+        assert!(checked_nonce(&[0u8; 11]).is_err());
+        assert!(checked_nonce(&[0u8; 13]).is_err());
+        assert!(checked_nonce(&[]).is_err());
+    }
 
     #[test]
     fn derive_subkeys_is_deterministic() {

@@ -1,6 +1,9 @@
 use crate::config::CONFIG;
 
-use sqlx::{postgres::PgPoolOptions, PgPool};
+use sqlx::{
+    postgres::{PgConnectOptions, PgPoolOptions},
+    PgPool,
+};
 use tracing::info;
 
 pub async fn run_migrations(pool: &PgPool) {
@@ -13,15 +16,14 @@ pub async fn run_migrations(pool: &PgPool) {
 }
 
 pub async fn get_pg_pool() -> PgPool {
-    let database_url: String = format!(
-        "postgresql://{}:{}@{}:{}/{}?application_name={}",
-        CONFIG.postgres_user,
-        CONFIG.postgres_password,
-        CONFIG.postgres_host,
-        CONFIG.postgres_port,
-        CONFIG.postgres_db,
-        CONFIG.application_name
-    );
+    let connect_options = PgConnectOptions::new()
+        .host(&CONFIG.postgres_host)
+        .port(CONFIG.postgres_port)
+        .username(&CONFIG.postgres_user)
+        .password(&CONFIG.postgres_password)
+        .database(&CONFIG.postgres_db)
+        .application_name(&CONFIG.application_name)
+        .options([("statement_timeout", "10000"), ("lock_timeout", "5000")]);
 
     info!(
         "Connecting to Postgres as {} (max_connections={}, acquire_timeout={}s, max_lifetime={}s)",
@@ -39,7 +41,7 @@ pub async fn get_pg_pool() -> PgPool {
         .max_lifetime(std::time::Duration::from_secs(
             CONFIG.postgres_pool_max_lifetime_sec,
         ))
-        .connect(&database_url)
+        .connect_with(connect_options)
         .await
         .expect("Failed to connect to Postgres — check POSTGRES_HOST/PORT/USER/PASSWORD/DB")
 }

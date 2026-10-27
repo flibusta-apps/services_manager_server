@@ -11,7 +11,10 @@ use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use subtle::ConstantTimeEq;
-use tower_http::trace::{self, TraceLayer};
+use tower_http::{
+    timeout::TimeoutLayer,
+    trace::{self, TraceLayer},
+};
 use tracing::Level;
 
 use crate::config::CONFIG;
@@ -29,7 +32,7 @@ const ALLOWED_STATUSES: &[&str] = &["approved"];
 const ALLOWED_CACHE_VALUES: &[&str] = &["original", "cache", "no_cache"];
 
 fn mask_token(token: &str) -> String {
-    format!("{}…", &token[..token.len().min(8)])
+    format!("{}…", token.chars().take(8).collect::<String>())
 }
 
 #[derive(Serialize)]
@@ -37,7 +40,7 @@ struct ErrorResponse {
     error: String,
 }
 
-/// Validates the Telegram bot token format: `^\d+:[A-Za-z0-9_-]{35}$`.
+/// Validates the Telegram bot token format: `^\d+:[A-Za-z0-9_-]{30,64}$` (matches book_bot's regex).
 fn is_valid_telegram_token_format(token: &str) -> bool {
     let Some((id_part, secret_part)) = token.split_once(':') else {
         return false;
@@ -47,7 +50,7 @@ fn is_valid_telegram_token_format(token: &str) -> bool {
         return false;
     }
 
-    if secret_part.len() != 35 {
+    if !(30..=64).contains(&secret_part.len()) {
         return false;
     }
 
@@ -128,7 +131,8 @@ struct ServiceRow {
 
 impl ServiceRow {
     fn try_into_service(self) -> Result<Service, String> {
-        let token = crate::crypto::decrypt_token(&self.token_ciphertext, &self.token_nonce)?;
+        let token = crate::crypto::decrypt_token(&self.token_ciphertext, &self.token_nonce)
+            .map_err(|e| format!("service id={}: {}", self.id, e))?;
         Ok(Service {
             id: self.id,
             token,
@@ -151,6 +155,9 @@ async fn get_services(db: Database) -> Result<impl IntoResponse, AppError> {
     .fetch_all(&db.0)
     .await?;
 
+    // Rows that fail to decrypt are NOT skipped: book_bot treats bots absent from
+    // this list as deleted and would stop them. We fail the request (500) instead,
+    // and the error log identifies the offending row id.
     let services: Vec<Service> = rows
         .into_iter()
         .map(|row| row.try_into_service())
@@ -384,31 +391,31 @@ async fn ready_check(db: Database) -> impl IntoResponse {
 
 //
 
+/// Extracts the key from an `Authorization` header value: accepts both
+/// `Bearer <key>` and the raw `<key>`.
+fn extract_key(header: &str) -> &str {
+    let header = header.trim();
+    match header.split_once(' ') {
+        Some((scheme, rest)) if scheme.eq_ignore_ascii_case("bearer") => rest.trim(),
+        _ => header,
+    }
+}
+
+fn is_authorized(header: &str, api_key: &str) -> bool {
+    let token_bytes = extract_key(header).as_bytes();
+    let api_key_bytes = api_key.as_bytes();
+
+    token_bytes.len() == api_key_bytes.len() && bool::from(token_bytes.ct_eq(api_key_bytes))
+}
+
 async fn auth(req: Request<axum::body::Body>, next: Next) -> Result<Response, StatusCode> {
     let auth_header = req
         .headers()
         .get(http::header::AUTHORIZATION)
-        .and_then(|header| header.to_str().ok());
+        .and_then(|header| header.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
 
-    let auth_header = if let Some(auth_header) = auth_header {
-        auth_header
-    } else {
-        return Err(StatusCode::UNAUTHORIZED);
-    };
-
-    let token = if let Some(token) = auth_header.strip_prefix("Bearer ") {
-        token
-    } else {
-        return Err(StatusCode::UNAUTHORIZED);
-    };
-
-    let token_bytes = token.as_bytes();
-    let api_key_bytes = CONFIG.api_key.as_bytes();
-
-    let is_valid =
-        token_bytes.len() == api_key_bytes.len() && bool::from(token_bytes.ct_eq(api_key_bytes));
-
-    if !is_valid {
+    if !is_authorized(auth_header, &CONFIG.api_key) {
         return Err(StatusCode::UNAUTHORIZED);
     }
 
@@ -442,6 +449,10 @@ pub fn get_router(client: PgPool) -> Router {
         .merge(app_router)
         .merge(metric_router)
         .merge(health_router)
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            std::time::Duration::from_secs(10),
+        ))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
@@ -491,18 +502,20 @@ mod tests {
 
     #[test]
     fn telegram_token_format_secret_too_short() {
-        // 34 chars instead of 35.
-        assert!(!is_valid_telegram_token_format(
-            "123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-        ));
+        // 29 chars (< 30).
+        assert!(!is_valid_telegram_token_format(&format!(
+            "123456789:{}",
+            "A".repeat(29)
+        )));
     }
 
     #[test]
     fn telegram_token_format_secret_too_long() {
-        // 36 chars instead of 35.
-        assert!(!is_valid_telegram_token_format(
-            "123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-        ));
+        // 65 chars (> 64).
+        assert!(!is_valid_telegram_token_format(&format!(
+            "123456789:{}",
+            "A".repeat(65)
+        )));
     }
 
     #[test]
@@ -579,41 +592,59 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
+    #[test]
+    fn auth_accepts_bearer_and_raw() {
+        let key = "0123456789abcdef";
+        assert!(is_authorized("Bearer 0123456789abcdef", key));
+        assert!(is_authorized("bearer 0123456789abcdef", key));
+        assert!(is_authorized("0123456789abcdef", key));
+        assert!(is_authorized("  0123456789abcdef ", key));
+    }
+
+    #[test]
+    fn auth_rejects_wrong_or_empty() {
+        let key = "0123456789abcdef";
+        assert!(!is_authorized("", key));
+        assert!(!is_authorized("Bearer ", key));
+        assert!(!is_authorized("Bearer wrong", key));
+        assert!(!is_authorized("wrong", key));
+        assert!(!is_authorized("Bearer 0123456789abcdef extra", key));
+    }
+
+    #[test]
+    fn mask_token_handles_multibyte() {
+        assert_eq!(mask_token("ééééééééééé"), "éééééééé…");
+        assert_eq!(mask_token("ab"), "ab…");
+    }
+
+    #[test]
+    fn telegram_token_secret_range() {
+        let ok = |n: usize| is_valid_telegram_token_format(&format!("1:{}", "A".repeat(n)));
+        assert!(!ok(29));
+        assert!(ok(30));
+        assert!(ok(64));
+        assert!(!ok(65));
+    }
+
     #[tokio::test]
+    #[ignore = "requires a reachable Postgres (set POSTGRES_* env vars)"]
     async fn ready_check_returns_ok_when_db_is_up() {
-        let user = match std::env::var("POSTGRES_USER") {
-            Ok(v) => v,
-            Err(_) => return,
-        };
-        let password = match std::env::var("POSTGRES_PASSWORD") {
-            Ok(v) => v,
-            Err(_) => return,
-        };
-        let host = match std::env::var("POSTGRES_HOST") {
-            Ok(v) => v,
-            Err(_) => return,
-        };
-        let port = match std::env::var("POSTGRES_PORT") {
-            Ok(v) => v,
-            Err(_) => return,
-        };
-        let db = match std::env::var("POSTGRES_DB") {
-            Ok(v) => v,
-            Err(_) => return,
-        };
+        let opts = sqlx::postgres::PgConnectOptions::new()
+            .host(&std::env::var("POSTGRES_HOST").expect("POSTGRES_HOST"))
+            .port(
+                std::env::var("POSTGRES_PORT")
+                    .expect("POSTGRES_PORT")
+                    .parse()
+                    .expect("POSTGRES_PORT must be u16"),
+            )
+            .username(&std::env::var("POSTGRES_USER").expect("POSTGRES_USER"))
+            .password(&std::env::var("POSTGRES_PASSWORD").expect("POSTGRES_PASSWORD"))
+            .database(&std::env::var("POSTGRES_DB").expect("POSTGRES_DB"));
 
-        let database_url = format!(
-            "postgresql://{}:{}@{}:{}/{}",
-            user, password, host, port, db
-        );
-
-        let pool = match sqlx::postgres::PgPoolOptions::new()
-            .connect(&database_url)
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .connect_with(opts)
             .await
-        {
-            Ok(p) => p,
-            Err(_) => return,
-        };
+            .expect("cannot connect to Postgres");
 
         let response = ready_check(Extension(pool)).await.into_response();
         assert_eq!(response.status(), StatusCode::OK);
