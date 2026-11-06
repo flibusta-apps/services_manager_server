@@ -34,6 +34,8 @@ jobs:
       POSTGRES_DB: services_manager_test
       TOKEN_ENC_KEY: MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=
       SQLX_OFFLINE: "true"
+      # sqlx::test creates isolated scratch databases from this URL.
+      DATABASE_URL: postgres://test:test@localhost:5432/services_manager_test
     steps:
       - name: Checkout
         uses: actions/checkout@v7
