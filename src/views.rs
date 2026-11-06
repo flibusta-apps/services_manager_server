@@ -409,13 +409,34 @@ fn is_authorized(header: &str, api_key: &str) -> bool {
 }
 
 async fn auth(req: Request<axum::body::Body>, next: Next) -> Result<Response, StatusCode> {
+    auth_with_key(req, next, &CONFIG.api_key).await
+}
+
+fn metrics_key<'a>(api_key: &'a str, metrics_api_key: Option<&'a str>) -> &'a str {
+    metrics_api_key.unwrap_or(api_key)
+}
+
+async fn metrics_auth(req: Request<axum::body::Body>, next: Next) -> Result<Response, StatusCode> {
+    auth_with_key(
+        req,
+        next,
+        metrics_key(&CONFIG.api_key, CONFIG.metrics_api_key.as_deref()),
+    )
+    .await
+}
+
+async fn auth_with_key(
+    req: Request<axum::body::Body>,
+    next: Next,
+    key: &str,
+) -> Result<Response, StatusCode> {
     let auth_header = req
         .headers()
         .get(http::header::AUTHORIZATION)
         .and_then(|header| header.to_str().ok())
         .ok_or(StatusCode::UNAUTHORIZED)?;
 
-    if !is_authorized(auth_header, &CONFIG.api_key) {
+    if !is_authorized(auth_header, key) {
         return Err(StatusCode::UNAUTHORIZED);
     }
 
@@ -443,7 +464,7 @@ pub fn get_router(client: PgPool) -> Router {
 
     let metric_router = Router::new()
         .route("/metrics", get(|| async move { metric_handle.render() }))
-        .layer(middleware::from_fn(auth));
+        .layer(middleware::from_fn(metrics_auth));
 
     Router::new()
         .merge(app_router)
@@ -609,6 +630,17 @@ mod tests {
         assert!(!is_authorized("Bearer wrong", key));
         assert!(!is_authorized("wrong", key));
         assert!(!is_authorized("Bearer 0123456789abcdef extra", key));
+    }
+
+    #[test]
+    fn metrics_auth_uses_only_dedicated_key_when_configured() {
+        let api_key = "0123456789abcdef";
+        let dedicated_key = "fedcba9876543210";
+        let key = metrics_key(api_key, Some(dedicated_key));
+        assert!(is_authorized("Bearer fedcba9876543210", key));
+        assert!(!is_authorized(api_key, key));
+        assert!(!is_authorized(dedicated_key, api_key));
+        assert!(is_authorized(api_key, metrics_key(api_key, None)));
     }
 
     #[test]

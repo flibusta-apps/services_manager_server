@@ -2,6 +2,7 @@ use once_cell::sync::Lazy;
 
 pub struct Config {
     pub api_key: String,
+    pub metrics_api_key: Option<String>,
 
     pub postgres_user: String,
     pub postgres_password: String,
@@ -27,6 +28,14 @@ fn get_env(env: &'static str) -> String {
 
 fn get_env_or(env: &'static str, default: &'static str) -> String {
     std::env::var(env).unwrap_or_else(|_| default.to_string())
+}
+
+fn non_empty(value: Option<String>) -> Option<String> {
+    value.filter(|value| !value.trim().is_empty())
+}
+
+fn get_env_opt(env: &'static str) -> Option<String> {
+    non_empty(std::env::var(env).ok())
 }
 
 fn get_env_parsed<T: std::str::FromStr>(env: &'static str, default: T) -> T {
@@ -56,6 +65,7 @@ impl Config {
     pub fn load() -> Config {
         Config {
             api_key: validate_api_key(get_env("API_KEY")),
+            metrics_api_key: get_env_opt("METRICS_API_KEY").map(validate_api_key),
 
             postgres_user: get_env("POSTGRES_USER"),
             postgres_password: get_env("POSTGRES_PASSWORD"),
@@ -65,7 +75,7 @@ impl Config {
                 .unwrap_or_else(|_| panic!("Cannot parse the POSTGRES_PORT env variable as u16")),
             postgres_db: get_env("POSTGRES_DB"),
 
-            sentry_dsn: std::env::var("SENTRY_DSN").ok(),
+            sentry_dsn: get_env_opt("SENTRY_DSN"),
 
             token_enc_key: get_env("TOKEN_ENC_KEY"),
 
@@ -87,6 +97,17 @@ pub static CONFIG: Lazy<Config> = Lazy::new(Config::load);
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn optional_values_ignore_empty_and_whitespace() {
+        assert_eq!(non_empty(None), None);
+        assert_eq!(non_empty(Some(String::new())), None);
+        assert_eq!(non_empty(Some(" \t\n".to_string())), None);
+        assert_eq!(
+            non_empty(Some("value".to_string())),
+            Some("value".to_string())
+        );
+    }
 
     #[test]
     #[should_panic(expected = "API_KEY")]

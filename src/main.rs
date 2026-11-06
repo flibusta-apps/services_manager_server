@@ -15,6 +15,11 @@ async fn start_app() {
     // Validate configuration and secrets before touching DB / binding.
     let _ = &*config::CONFIG;
     crypto::init();
+    if config::CONFIG.metrics_api_key.is_none() {
+        tracing::warn!(
+            "METRICS_API_KEY is unset; /metrics uses API_KEY, which also permits token export and mutations. Configure a separate metrics key."
+        );
+    }
 
     // Initialize database pool
     let pool = db::get_pg_pool().await;
