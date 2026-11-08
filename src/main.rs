@@ -5,9 +5,11 @@ pub mod error;
 pub mod views;
 
 use sentry::{integrations::debug_images::DebugImagesIntegration, types::Dsn, ClientOptions};
-use sentry_tracing::EventFilter;
 use tracing::info;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{
+    filter::LevelFilter, layer::SubscriberExt, registry::LookupSpan, util::SubscriberInitExt,
+    EnvFilter, Layer,
+};
 
 use std::{net::SocketAddr, str::FromStr};
 
@@ -64,6 +66,26 @@ async fn shutdown_signal() {
     }
 }
 
+fn sentry_options(dsn: Option<Dsn>) -> ClientOptions {
+    let mut options = ClientOptions::default();
+    options.dsn = dsn;
+    options.add_integration(DebugImagesIntegration::new())
+}
+
+fn sentry_layer<S>() -> impl Layer<S>
+where
+    S: tracing::Subscriber + for<'a> LookupSpan<'a>,
+{
+    sentry_tracing::ErrorLayer::new().with_filter(LevelFilter::ERROR)
+}
+
+fn sentry_span_layer<S>() -> impl Layer<S>
+where
+    S: tracing::Subscriber + for<'a> LookupSpan<'a>,
+{
+    sentry_tracing::SpanLayer::new().with_filter(LevelFilter::INFO)
+}
+
 #[tokio::main]
 async fn main() {
     let dsn = config::CONFIG
@@ -71,26 +93,81 @@ async fn main() {
         .as_ref()
         .map(|dsn| Dsn::from_str(dsn).expect("Invalid SENTRY_DSN value"));
 
-    let options = ClientOptions {
-        dsn,
-        ..Default::default()
-    }
-    .add_integration(DebugImagesIntegration::new());
-
-    let _guard = sentry::init(options);
-
-    let sentry_layer = sentry_tracing::layer().event_filter(|md| match md.level() {
-        &tracing::Level::ERROR => EventFilter::Event,
-        _ => EventFilter::Ignore,
-    });
+    let _guard = sentry::init(sentry_options(dsn));
 
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     tracing_subscriber::registry()
         .with(env_filter)
         .with(tracing_subscriber::fmt::layer().with_target(false))
-        .with(sentry_layer)
+        .with(sentry_span_layer())
+        .with(sentry_layer())
         .init();
 
     start_app().await;
+}
+
+#[cfg(test)]
+mod telemetry_tests {
+    use super::*;
+
+    #[test]
+    fn tracing_errors_reach_the_configured_sentry_client() {
+        let dsn = Dsn::from_str("https://public@example.invalid/1").unwrap();
+        let events = sentry::test::with_captured_events_options(
+            || {
+                let subscriber = tracing_subscriber::registry()
+                    .with(sentry_span_layer())
+                    .with(sentry_layer());
+                tracing::subscriber::with_default(subscriber, || {
+                    tracing::trace!("ignored trace");
+                    tracing::debug!("ignored debug");
+                    tracing::info!("ignored info");
+                    tracing::warn!("ignored warning");
+                    tracing::error!(
+                        tags.component = "services-manager",
+                        "captured tracing error"
+                    );
+                });
+            },
+            sentry_options(Some(dsn)),
+        );
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].level, sentry::Level::Error);
+        assert_eq!(events[0].message.as_deref(), Some("captured tracing error"));
+        assert_eq!(events[0].tags["component"], "services-manager");
+        assert!(events[0].breadcrumbs.is_empty());
+    }
+
+    #[test]
+    fn tracing_retains_info_span_context_but_excludes_debug_spans() {
+        let events = sentry::test::with_captured_events_options(
+            || {
+                let subscriber = tracing_subscriber::registry()
+                    .with(sentry_span_layer())
+                    .with(sentry_layer());
+                tracing::subscriber::with_default(subscriber, || {
+                    assert!(sentry::configure_scope(|scope| scope.get_span()).is_none());
+                    let _info = tracing::info_span!("retained info").entered();
+                    assert!(sentry::configure_scope(|scope| scope.get_span()).is_some());
+                    tracing::error!("info context");
+                    {
+                        let _debug = tracing::debug_span!("excluded debug").entered();
+                        assert!(sentry::configure_scope(|scope| scope.get_span()).is_some());
+                        tracing::error!("same info context");
+                    }
+                    assert!(sentry::configure_scope(|scope| scope.get_span()).is_some());
+                });
+                assert!(sentry::configure_scope(|scope| scope.get_span()).is_none());
+            },
+            sentry_options(Some(
+                Dsn::from_str("https://public@example.invalid/1").unwrap(),
+            )),
+        );
+        assert_eq!(events.len(), 2);
+        let trace = events[0].contexts.get("trace").expect("INFO trace context");
+        assert_eq!(Some(trace), events[1].contexts.get("trace"));
+        assert!(events.iter().all(|event| event.breadcrumbs.is_empty()));
+    }
 }
