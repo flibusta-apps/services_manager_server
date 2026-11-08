@@ -38,6 +38,6 @@ subtle = "2.6.1"
 
 aes-gcm = "0.10"
 hkdf = "0.12"
-hmac = "0.12"
+hmac = "0.13"
 sha2 = "0.10"
 base64 = "0.22"
