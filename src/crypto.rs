@@ -89,7 +89,7 @@ pub fn decrypt_token(ciphertext: &[u8], nonce: &[u8]) -> Result<String, String> 
 }
 
 pub fn hmac_token(plaintext: &str) -> Vec<u8> {
-    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(&TOKEN_CRYPTO.hmac_key)
+    let mut mac = <Hmac<Sha256> as hmac::KeyInit>::new_from_slice(&TOKEN_CRYPTO.hmac_key)
         .expect("HMAC accepts any key size");
     mac.update(plaintext.as_bytes());
     mac.finalize().into_bytes().to_vec()
@@ -112,6 +112,37 @@ mod tests {
         assert!(checked_nonce(&[0u8; 11]).is_err());
         assert!(checked_nonce(&[0u8; 13]).is_err());
         assert!(checked_nonce(&[]).is_err());
+    }
+
+    #[test]
+    fn persisted_token_key_and_hmac_vectors() {
+        // HKDF-SHA256 with no salt and the v1 info strings is part of the
+        // persisted token format. These fixed values were independently
+        // calculated with Python's hashlib/hmac (RFC 5869 extract + expand).
+        let (enc_key, hmac_key) = derive_subkeys(&[7u8; 32]);
+        assert_eq!(
+            enc_key,
+            [
+                220, 245, 244, 136, 190, 174, 66, 137, 160, 62, 115, 2, 73, 157, 132, 152, 18, 140,
+                56, 130, 32, 16, 160, 34, 249, 227, 200, 60, 53, 217, 173, 254
+            ]
+        );
+        assert_eq!(
+            hmac_key,
+            [
+                179, 206, 160, 186, 1, 177, 25, 117, 151, 72, 12, 1, 101, 77, 232, 231, 47, 185,
+                206, 180, 170, 97, 187, 96, 26, 127, 22, 210, 121, 224, 88, 48
+            ]
+        );
+        let mut mac = <Hmac<Sha256> as hmac::KeyInit>::new_from_slice(&hmac_key).unwrap();
+        mac.update(b"token-a");
+        assert_eq!(
+            mac.finalize().into_bytes().as_slice(),
+            [
+                5, 67, 105, 235, 139, 175, 106, 189, 98, 37, 73, 69, 3, 218, 138, 152, 83, 150,
+                194, 52, 46, 57, 52, 243, 210, 165, 114, 73, 133, 40, 232, 46
+            ]
+        );
     }
 
     #[test]
@@ -170,7 +201,7 @@ mod tests {
         let (_enc_key, hmac_key) = derive_subkeys(&master);
 
         let mac_for = |input: &str| {
-            let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(&hmac_key).unwrap();
+            let mut mac = <Hmac<Sha256> as hmac::KeyInit>::new_from_slice(&hmac_key).unwrap();
             mac.update(input.as_bytes());
             mac.finalize().into_bytes().to_vec()
         };
