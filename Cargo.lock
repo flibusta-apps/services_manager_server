@@ -2706,7 +2706,7 @@ dependencies = [
  "aes-gcm",
  "axum",
  "axum-prometheus",
- "base64 0.22.1",
+ "base64 0.23.1",
  "chrono",
  "hkdf 0.13.0",
  "hmac 0.13.0",
